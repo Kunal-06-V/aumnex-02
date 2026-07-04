@@ -5,10 +5,13 @@ import { LogOut, Bell } from "lucide-react";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { ChevronDown } from "lucide-react";
 import SearchBar from "./SearchBar";
 
 export default function Topbar({ student }) {
   const router = useRouter();
+  const [showMenu, setShowMenu] = useState(false);
 
   async function handleLogout() {
     await signOut(auth);
@@ -39,13 +42,17 @@ return (
   </div>
 
   {/* Student Profile */}
-  <div className="flex items-center gap-3">
+    <div className="relative">
 
+  <button
+    onClick={() => setShowMenu(!showMenu)}
+    className="flex items-center gap-3 hover:bg-gray-100 rounded-xl px-3 py-2 transition"
+  >
     <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold">
       {student?.name?.charAt(0) || "S"}
     </div>
 
-    <div>
+    <div className="text-left">
       <p className="font-semibold text-sm">
         {student?.name}
       </p>
@@ -53,18 +60,46 @@ return (
       <p className="text-xs text-gray-500">
         Student
       </p>
+      <p className="text-xs text-gray-400">
+        {student?.email}
+      </p>
     </div>
 
-  </div>
+<ChevronDown
+  size={18}
+  className={`transition-transform ${
+    showMenu ? "rotate-180" : ""
+  }`}
+/>  </button>
 
-  {/* Logout */}
-  <button
-    onClick={handleLogout}
-    className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg"
-  >
-    <LogOut size={18} />
-    Logout
-  </button>
+  {showMenu && (
+    <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border overflow-hidden z-50">
+
+      <button
+         onClick={() => router.push("/student/profile")}
+          className="w-full text-left px-4 py-3 hover:bg-gray-100">
+         👤 My Profile
+     </button>
+
+      <button className="w-full text-left px-4 py-3 hover:bg-gray-100">
+        ⚙️ Settings
+      </button>
+
+      <button className="w-full text-left px-4 py-3 hover:bg-gray-100">
+        ❓ Help
+      </button>
+
+      <button
+        onClick={handleLogout}
+        className="w-full text-left px-4 py-3 text-red-600 hover:bg-red-50"
+      >
+        🚪 Logout
+      </button>
+
+    </div>
+  )}
+
+</div>
 
 </div>
 

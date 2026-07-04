@@ -15,6 +15,7 @@ import AttendanceChart from "@/components/AttendanceChart";
 import CGPAChart from "@/components/CGPAChart";
 import Timetable from "@/components/Timetable";
 import NotificationPanel from "@/components/NotificationPanel";
+import QuickActions from "@/components/QuickActions";
 
 export default function StudentDashboard() {
   const [student, setStudent] = useState(null);
@@ -99,6 +100,10 @@ export default function StudentDashboard() {
 
           <NotificationPanel />
         </div>
+        {/* Row 4 */}
+       <div className="mt-8">
+         <QuickActions />
+       </div>
       </main>
     </div>
   );
