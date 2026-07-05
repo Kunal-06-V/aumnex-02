@@ -4,52 +4,269 @@
     "_subcollections": {
       "days": {
         "monday": {
-          "period1": "Java Programming",
-          "period2": "Database Management",
-          "period3": "Operating Systems",
-          "period4": "Break",
-          "period5": "Computer Networks",
-          "period6": "Software Engineering"
+          "period1": {
+            "subject": "Java Programming",
+            "time": "09:00 - 10:00",
+            "faculty": "Prof. A. Patil",
+            "room": "301",
+            "type": "Theory"
+          },
+          "period2": {
+            "subject": "Database Management",
+            "time": "10:00 - 11:00",
+            "faculty": "Prof. S. Kulkarni",
+            "room": "204",
+            "type": "Theory"
+          },
+          "period3": {
+            "subject": "Operating Systems",
+            "time": "11:00 - 12:00",
+            "faculty": "Prof. R. Sharma",
+            "room": "305",
+            "type": "Theory"
+          },
+          "period4": {
+            "subject": "Break",
+            "time": "12:00 - 12:30",
+            "faculty": "-",
+            "room": "-",
+            "type": "Break"
+          },
+          "period5": {
+            "subject": "Computer Networks",
+            "time": "12:30 - 01:30",
+            "faculty": "Prof. M. Joshi",
+            "room": "402",
+            "type": "Theory"
+          },
+          "period6": {
+            "subject": "Software Engineering",
+            "time": "01:30 - 02:30",
+            "faculty": "Prof. P. Deshmukh",
+            "room": "210",
+            "type": "Theory"
+          }
         },
+
         "tuesday": {
-          "period1": "Database Management",
-          "period2": "Java Programming Lab",
-          "period3": "Computer Networks",
-          "period4": "Break",
-          "period5": "Operating Systems",
-          "period6": "Mini Project"
+          "period1": {
+            "subject": "Database Management",
+            "time": "09:00 - 10:00",
+            "faculty": "Prof. S. Kulkarni",
+            "room": "204",
+            "type": "Theory"
+          },
+          "period2": {
+            "subject": "Java Programming Lab",
+            "time": "10:00 - 12:00",
+            "faculty": "Prof. A. Patil",
+            "room": "Lab 2",
+            "type": "Lab"
+          },
+          "period3": {
+            "subject": "Break",
+            "time": "12:00 - 12:30",
+            "faculty": "-",
+            "room": "-",
+            "type": "Break"
+          },
+          "period4": {
+            "subject": "Operating Systems",
+            "time": "12:30 - 01:30",
+            "faculty": "Prof. R. Sharma",
+            "room": "305",
+            "type": "Theory"
+          },
+          "period5": {
+            "subject": "Mini Project",
+            "time": "01:30 - 02:30",
+            "faculty": "Prof. N. Desai",
+            "room": "Project Lab",
+            "type": "Project"
+          },
+          "period6": {
+            "subject": "Computer Networks",
+            "time": "02:30 - 03:30",
+            "faculty": "Prof. M. Joshi",
+            "room": "402",
+            "type": "Theory"
+          }
+        },        "wednesday": {
+          "period1": {
+            "subject": "Software Engineering",
+            "time": "09:00 - 10:00",
+            "faculty": "Prof. P. Deshmukh",
+            "room": "210",
+            "type": "Theory"
+          },
+          "period2": {
+            "subject": "Java Programming",
+            "time": "10:00 - 11:00",
+            "faculty": "Prof. A. Patil",
+            "room": "301",
+            "type": "Theory"
+          },
+          "period3": {
+            "subject": "Database Management Lab",
+            "time": "11:00 - 01:00",
+            "faculty": "Prof. S. Kulkarni",
+            "room": "Lab 3",
+            "type": "Lab"
+          },
+          "period4": {
+            "subject": "Break",
+            "time": "01:00 - 01:30",
+            "faculty": "-",
+            "room": "-",
+            "type": "Break"
+          },
+          "period5": {
+            "subject": "Library",
+            "time": "01:30 - 02:30",
+            "faculty": "-",
+            "room": "Library",
+            "type": "Library"
+          },
+          "period6": {
+            "subject": "Operating Systems",
+            "time": "02:30 - 03:30",
+            "faculty": "Prof. R. Sharma",
+            "room": "305",
+            "type": "Theory"
+          }
         },
-        "wednesday": {
-          "period1": "Software Engineering",
-          "period2": "Java Programming",
-          "period3": "Database Management Lab",
-          "period4": "Break",
-          "period5": "Operating Systems",
-          "period6": "Library"
-        },
+
         "thursday": {
-          "period1": "Computer Networks",
-          "period2": "Software Engineering",
-          "period3": "Java Programming",
-          "period4": "Break",
-          "period5": "Database Management",
-          "period6": "Aptitude"
+          "period1": {
+            "subject": "Computer Networks",
+            "time": "09:00 - 10:00",
+            "faculty": "Prof. M. Joshi",
+            "room": "402",
+            "type": "Theory"
+          },
+          "period2": {
+            "subject": "Software Engineering",
+            "time": "10:00 - 11:00",
+            "faculty": "Prof. P. Deshmukh",
+            "room": "210",
+            "type": "Theory"
+          },
+          "period3": {
+            "subject": "Java Programming",
+            "time": "11:00 - 12:00",
+            "faculty": "Prof. A. Patil",
+            "room": "301",
+            "type": "Theory"
+          },
+          "period4": {
+            "subject": "Break",
+            "time": "12:00 - 12:30",
+            "faculty": "-",
+            "room": "-",
+            "type": "Break"
+          },
+          "period5": {
+            "subject": "Database Management",
+            "time": "12:30 - 01:30",
+            "faculty": "Prof. S. Kulkarni",
+            "room": "204",
+            "type": "Theory"
+          },
+          "period6": {
+            "subject": "Aptitude",
+            "time": "01:30 - 02:30",
+            "faculty": "Training Cell",
+            "room": "Seminar Hall",
+            "type": "Training"
+          }
+        },        "friday": {
+          "period1": {
+            "subject": "Operating Systems",
+            "time": "09:00 - 10:00",
+            "faculty": "Prof. R. Sharma",
+            "room": "305",
+            "type": "Theory"
+          },
+          "period2": {
+            "subject": "Java Programming",
+            "time": "10:00 - 11:00",
+            "faculty": "Prof. A. Patil",
+            "room": "301",
+            "type": "Theory"
+          },
+          "period3": {
+            "subject": "Mini Project",
+            "time": "11:00 - 12:00",
+            "faculty": "Prof. N. Desai",
+            "room": "Project Lab",
+            "type": "Project"
+          },
+          "period4": {
+            "subject": "Break",
+            "time": "12:00 - 12:30",
+            "faculty": "-",
+            "room": "-",
+            "type": "Break"
+          },
+          "period5": {
+            "subject": "Database Management",
+            "time": "12:30 - 01:30",
+            "faculty": "Prof. S. Kulkarni",
+            "room": "204",
+            "type": "Theory"
+          },
+          "period6": {
+            "subject": "Computer Networks Lab",
+            "time": "01:30 - 03:30",
+            "faculty": "Prof. M. Joshi",
+            "room": "Lab 4",
+            "type": "Lab"
+          }
         },
-        "friday": {
-          "period1": "Operating Systems",
-          "period2": "Java Programming",
-          "period3": "Mini Project",
-          "period4": "Break",
-          "period5": "Database Management",
-          "period6": "Computer Networks Lab"
-        },
+
         "saturday": {
-          "period1": "Aptitude",
-          "period2": "Seminar",
-          "period3": "Project Work",
-          "period4": "Break",
-          "period5": "Sports",
-          "period6": "Mentoring"
+          "period1": {
+            "subject": "Aptitude",
+            "time": "09:00 - 10:00",
+            "faculty": "Training Cell",
+            "room": "Seminar Hall",
+            "type": "Training"
+          },
+          "period2": {
+            "subject": "Seminar",
+            "time": "10:00 - 11:00",
+            "faculty": "Faculty Coordinator",
+            "room": "Seminar Hall",
+            "type": "Seminar"
+          },
+          "period3": {
+            "subject": "Project Work",
+            "time": "11:00 - 01:00",
+            "faculty": "Project Guide",
+            "room": "Project Lab",
+            "type": "Project"
+          },
+          "period4": {
+            "subject": "Break",
+            "time": "01:00 - 01:30",
+            "faculty": "-",
+            "room": "-",
+            "type": "Break"
+          },
+          "period5": {
+            "subject": "Sports",
+            "time": "01:30 - 02:30",
+            "faculty": "Sports Department",
+            "room": "Play Ground",
+            "type": "Sports"
+          },
+          "period6": {
+            "subject": "Mentoring",
+            "time": "02:30 - 03:30",
+            "faculty": "Class Mentor",
+            "room": "Classroom",
+            "type": "Mentoring"
+          }
         }
       }
     }
