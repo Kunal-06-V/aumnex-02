@@ -1,0 +1,13 @@
+{
+  "student001": {
+    "name": "Kunal Vijay Varal",
+    "rollNo": "22CS101",
+    "prn": "2201010101",
+    "email": "kunal@example.com",
+    "phone": "9876543210",
+    "department": "Computer Engineering",
+    "semester": "Semester 4",
+    "division": "A",
+    "address": "Pune, Maharashtra"
+  }
+}

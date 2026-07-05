@@ -1,0 +1,31 @@
+{
+  "student001": {
+    "totalFees": 95000,
+    "paidFees": 75000,
+    "pendingFees": 20000,
+    "percentagePaid": 79,
+    "status": "Partial",
+    "_subcollections": {
+      "payments": {
+        "payment1": {
+          "receiptNo": "REC001",
+          "amount": 25000,
+          "date": "12 Jan 2026",
+          "status": "Paid"
+        },
+        "payment2": {
+          "receiptNo": "REC002",
+          "amount": 25000,
+          "date": "20 Mar 2026",
+          "status": "Paid"
+        },
+        "payment3": {
+          "receiptNo": "REC003",
+          "amount": 25000,
+          "date": "15 Jun 2026",
+          "status": "Paid"
+        }
+      }
+    }
+  }
+}

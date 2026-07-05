@@ -1,0 +1,32 @@
+{
+  "student001": {
+    "studentName": "Kunal Vijay Varal",
+    "semester": "Semester 4",
+    "sgpa": 9.12,
+    "cgpa": 8.95,
+    "_subcollections": {
+      "subjects": {
+        "java": {
+          "subject": "Java Programming",
+          "marks": 89,
+          "grade": "A+"
+        },
+        "dbms": {
+          "subject": "Database Management",
+          "marks": 92,
+          "grade": "O"
+        },
+        "os": {
+          "subject": "Operating Systems",
+          "marks": 85,
+          "grade": "A"
+        },
+        "cn": {
+          "subject": "Computer Networks",
+          "marks": 88,
+          "grade": "A+"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "student001": {
+    "overallAttendance": 92,
+    "presentDays": 184,
+    "absentDays": 16,
+    "totalDays": 200,
+    "status": "Excellent",
+    "_subcollections": {
+      "subjects": {
+        "java": {
+          "subject": "Java Programming",
+          "present": 28,
+          "total": 30,
+          "percentage": 93,
+          "status": "Good"
+        },
+        "dbms": {
+          "subject": "Database Management",
+          "present": 30,
+          "total": 30,
+          "percentage": 100,
+          "status": "Excellent"
+        },
+        "os": {
+          "subject": "Operating Systems",
+          "present": 25,
+          "total": 30,
+          "percentage": 83,
+          "status": "Good"
+        },
+        "cn": {
+          "subject": "Computer Networks",
+          "present": 27,
+          "total": 30,
+          "percentage": 90,
+          "status": "Excellent"
+        }
+      }
+    }
+  }
+}

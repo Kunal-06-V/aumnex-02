@@ -1,0 +1,10 @@
+{
+  "admin001": {
+    "name": "Admin User",
+    "email": "admin@aumnex.com",
+    "role": "Super Admin",
+    "department": "Administration",
+    "phone": "9876543210",
+    "status": "Active"
+  }
+}

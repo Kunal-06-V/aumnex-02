@@ -1,0 +1,23 @@
+{
+  "notice001": {
+    "title": "Mid Semester Examination",
+    "message": "Mid Semester Exams will start from 15 August 2026.",
+    "type": "Exam",
+    "priority": "High",
+    "date": "2026-08-01"
+  },
+  "notice002": {
+    "title": "Fee Reminder",
+    "message": "Pay the remaining fees before 10 August 2026.",
+    "type": "Fees",
+    "priority": "Medium",
+    "date": "2026-08-03"
+  },
+  "notice003": {
+    "title": "College Holiday",
+    "message": "College will remain closed on Independence Day.",
+    "type": "Holiday",
+    "priority": "Low",
+    "date": "2026-08-15"
+  }
+}

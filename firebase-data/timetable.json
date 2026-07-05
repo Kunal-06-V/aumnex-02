@@ -1,0 +1,57 @@
+{
+  "semester4": {
+    "semester": "Semester 4",
+    "_subcollections": {
+      "days": {
+        "monday": {
+          "period1": "Java Programming",
+          "period2": "Database Management",
+          "period3": "Operating Systems",
+          "period4": "Break",
+          "period5": "Computer Networks",
+          "period6": "Software Engineering"
+        },
+        "tuesday": {
+          "period1": "Database Management",
+          "period2": "Java Programming Lab",
+          "period3": "Computer Networks",
+          "period4": "Break",
+          "period5": "Operating Systems",
+          "period6": "Mini Project"
+        },
+        "wednesday": {
+          "period1": "Software Engineering",
+          "period2": "Java Programming",
+          "period3": "Database Management Lab",
+          "period4": "Break",
+          "period5": "Operating Systems",
+          "period6": "Library"
+        },
+        "thursday": {
+          "period1": "Computer Networks",
+          "period2": "Software Engineering",
+          "period3": "Java Programming",
+          "period4": "Break",
+          "period5": "Database Management",
+          "period6": "Aptitude"
+        },
+        "friday": {
+          "period1": "Operating Systems",
+          "period2": "Java Programming",
+          "period3": "Mini Project",
+          "period4": "Break",
+          "period5": "Database Management",
+          "period6": "Computer Networks Lab"
+        },
+        "saturday": {
+          "period1": "Aptitude",
+          "period2": "Seminar",
+          "period3": "Project Work",
+          "period4": "Break",
+          "period5": "Sports",
+          "period6": "Mentoring"
+        }
+      }
+    }
+  }
+}
