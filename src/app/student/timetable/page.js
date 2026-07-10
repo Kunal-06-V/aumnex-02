@@ -7,12 +7,15 @@ import {
   Clock,
   User,
   MapPin,
+  ArrowLeft,
 } from "lucide-react";
 
 import { db } from "@/lib/firebase";
 import PageHeader from "@/components/PageHeader";
+import { useRouter } from "next/navigation";
 
 export default function StudentTimetable() {
+  const router = useRouter();
   const [semester, setSemester] = useState(null);
   const [days, setDays] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -98,19 +101,35 @@ export default function StudentTimetable() {
   }
 
   if (!semester) {
-    return (
-      <div className="p-10 text-center">
-        Timetable not found.
+  return (
+    <div className="flex justify-center items-center min-h-[70vh]">
+      <div className="bg-white rounded-2xl shadow-xl p-10 text-center">
+        <h1 className="text-3xl font-bold">
+          Timetable Not Available
+        </h1>
+
+        <p className="text-gray-500 mt-3">
+          Timetable has not been uploaded yet.
+        </p>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   return (
       <div className="space-y-8">
-      <PageHeader
-        title="Class Timetable"
-        subtitle="Weekly lecture schedule"
-      />
+      <button
+  onClick={() => router.back()}
+  className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium"
+>
+  <ArrowLeft size={18} />
+  Back
+</button>
+
+<PageHeader
+  title="Class Timetable"
+  subtitle="Weekly lecture schedule"
+/>
 
       <div className="bg-white rounded-2xl shadow-lg p-6 mb-8 flex justify-between items-center">
 

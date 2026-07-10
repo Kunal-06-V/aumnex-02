@@ -23,7 +23,7 @@ const menuItems = [
   },
   {
     title: "NFC Attendance",
-    href: "/student/nfc",
+    href: "/student/nfc-attendance",
     icon: Smartphone,
   },
   {

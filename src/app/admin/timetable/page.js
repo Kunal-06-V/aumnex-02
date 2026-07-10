@@ -37,12 +37,13 @@ export default function AdminTimetablePage() {
   const [saving, setSaving] = useState(false);
 
   const [selectedDay, setSelectedDay] = useState("monday");
+  const [selectedSemester, setSelectedSemester] = useState("semester4");
 
   const [data, setData] = useState({});
 
   useEffect(() => {
-    fetchTimetable();
-  }, []);
+  fetchTimetable();
+}, [selectedSemester]);
 
   async function fetchTimetable() {
     try {
@@ -51,13 +52,14 @@ export default function AdminTimetablePage() {
       const timetable = {};
 
       for (const day of days) {
-        const ref = doc(
-          db,
-          "timetable",
-          "semester4",
-          "days",
-          day
-        );
+
+  const ref = doc(
+    db,
+    "timetable",
+    selectedSemester,
+    "days",
+    day
+  );
 
         const snap = await getDoc(ref);
 
@@ -92,12 +94,12 @@ export default function AdminTimetablePage() {
       setSaving(true);
 
       const ref = doc(
-        db,
-        "timetable",
-        "semester4",
-        "days",
-        selectedDay
-      );
+  db,
+  "timetable",
+  selectedSemester,
+  "days",
+  selectedDay
+);
 
       await updateDoc(ref, data[selectedDay]);
 
@@ -112,7 +114,7 @@ export default function AdminTimetablePage() {
 
   if (loading) {
     return (
-      <div className="p-8">
+      <div className="space-y-8">
         Loading timetable...
       </div>
     );
@@ -120,33 +122,47 @@ export default function AdminTimetablePage() {
 
   return (
     <div className="space-y-6">
+<div className="flex justify-between items-center">
 
-      <div className="flex justify-between items-center">
+  <div>
+    <h1 className="text-3xl font-bold">
+      Manage Timetable
+    </h1>
 
-        <div>
+    <p className="text-gray-500">
+      Edit timetable for the selected semester
+    </p>
+  </div>
 
-          <h1 className="text-3xl font-bold">
-            Manage Timetable
-          </h1>
+  <div className="flex items-center gap-4">
 
-          <p className="text-gray-500">
-            Edit timetable for Semester 4
-          </p>
+    <select
+      value={selectedSemester}
+      onChange={(e) => setSelectedSemester(e.target.value)}
+      className="border rounded-xl px-4 py-2"
+    >
+      <option value="semester1">Semester 1</option>
+      <option value="semester2">Semester 2</option>
+      <option value="semester3">Semester 3</option>
+      <option value="semester4">Semester 4</option>
+      <option value="semester5">Semester 5</option>
+      <option value="semester6">Semester 6</option>
+      <option value="semester7">Semester 7</option>
+      <option value="semester8">Semester 8</option>
+    </select>
 
-        </div>
+    <button
+      onClick={saveDay}
+      disabled={saving}
+      className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl flex items-center gap-2"
+    >
+      <Save size={18} />
+      {saving ? "Saving..." : "Save Changes"}
+    </button>
 
-        <button
-          onClick={saveDay}
-          disabled={saving}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl flex items-center gap-2"
-        >
-          <Save size={18} />
+  </div>
 
-          {saving ? "Saving..." : "Save Changes"}
-
-        </button>
-
-      </div>
+</div>
 
       <div className="bg-white rounded-2xl shadow-md p-6">
 
