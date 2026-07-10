@@ -106,8 +106,7 @@ export default function StudentTimetable() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 p-8">
-
+      <div className="space-y-8">
       <PageHeader
         title="Class Timetable"
         subtitle="Weekly lecture schedule"

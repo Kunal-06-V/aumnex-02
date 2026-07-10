@@ -15,7 +15,6 @@ import {
   Wallet,
   AlertTriangle,
   Receipt,
-  ChevronLeft,
 } from "lucide-react";
 import { db } from "@/lib/firebase";
 
@@ -42,7 +41,15 @@ export default function StudentFees() {
         return;
       }
 
-      setFeeData(feeSnap.data());
+     const data = feeSnap.data();
+
+const total = Number(data.totalFees || 0);
+const paid = Number(data.paidFees || 0);
+
+data.percentagePaid =
+  total > 0 ? Math.round((paid / total) * 100) : 0;
+
+setFeeData(data);
 
       const paymentsRef = collection(
         db,
@@ -68,7 +75,7 @@ export default function StudentFees() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-100 p-8">
+      <div className="space-y-8">
         <div className="animate-pulse space-y-6">
           <div className="h-10 bg-gray-300 rounded w-60" />
 
@@ -89,7 +96,7 @@ export default function StudentFees() {
 
   if (!feeData) {
     return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-[70vh]">
         <div className="bg-white rounded-2xl shadow-xl p-10 text-center max-w-lg">
           <AlertTriangle
             className="mx-auto text-yellow-500 mb-4"
@@ -110,7 +117,7 @@ export default function StudentFees() {
   }
 
  return (
-  <div className="min-h-screen bg-slate-100 p-8">
+  <div className="space-y-8">
 
     <button
       onClick={() => router.back()}
@@ -214,38 +221,29 @@ export default function StudentFees() {
 
         </div>
 
-        <div className="bg-white rounded-2xl shadow-lg p-6">
+       <div className="bg-white rounded-2xl shadow-lg p-6">
+  <div className="flex items-center justify-between">
 
-          <div className="flex items-center justify-between">
+    <div>
+      <p className="text-gray-500">
+        Due Date
+      </p>
 
-            <div>
+      <h2 className="text-2xl font-bold text-orange-600 mt-3">
+        {feeData.dueDate || "15 Aug 2026"}
+      </h2>
 
-              <p className="text-gray-500">
-                Payment Status
-              </p>
+    </div>
 
-              <span
-                className={`inline-flex mt-3 px-4 py-2 rounded-full text-sm font-semibold ${
-                  feeData.status === "Paid"
-                    ? "bg-green-100 text-green-700"
-                    : "bg-yellow-100 text-yellow-700"
-                }`}
-              >
-                {feeData.status}
-              </span>
+    <div className="bg-orange-100 p-4 rounded-xl">
+      <AlertTriangle
+        className="text-orange-600"
+        size={30}
+      />
+    </div>
 
-            </div>
-
-            <div className="bg-yellow-100 p-4 rounded-xl">
-              <Receipt
-                className="text-yellow-600"
-                size={30}
-              />
-            </div>
-
-          </div>
-
-        </div>
+  </div>
+</div>
 
       </div>
 
@@ -253,30 +251,49 @@ export default function StudentFees() {
 
       <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
 
-        <div className="flex justify-between mb-4">
+  <div className="flex justify-between mb-4">
 
-          <h2 className="text-xl font-semibold">
-            Payment Progress
-          </h2>
+    <h2 className="text-xl font-semibold">
+      Payment Progress
+    </h2>
 
-          <span className="font-bold text-blue-600">
-            {feeData.percentagePaid}%
-          </span>
+    <span className="font-bold text-blue-600">
+      {feeData.percentagePaid}%
+    </span>
 
-        </div>
+  </div>
 
-        <div className="w-full h-4 bg-gray-200 rounded-full overflow-hidden">
+  <div className="w-full h-4 bg-gray-200 rounded-full overflow-hidden">
 
-          <div
-            className="h-full bg-gradient-to-r from-blue-500 to-green-500 rounded-full transition-all duration-700"
-            style={{
-              width: `${feeData.percentagePaid}%`,
-            }}
-          />
+    <div
+      className="h-full bg-gradient-to-r from-blue-500 to-green-500 rounded-full transition-all duration-700"
+      style={{
+        width: `${feeData.percentagePaid}%`,
+      }}
+    />
 
-        </div>
+  </div>
 
-      </div>
+  {/* Payment Status */}
+  <div className="mt-6 flex items-center justify-between border-t pt-4">
+
+    <span className="text-gray-600 font-medium">
+      Payment Status
+    </span>
+
+    <span
+      className={`px-4 py-2 rounded-full text-sm font-semibold ${
+        feeData.status === "Paid"
+          ? "bg-green-100 text-green-700"
+          : "bg-yellow-100 text-yellow-700"
+      }`}
+    >
+      {feeData.status}
+    </span>
+
+  </div>
+
+</div>
 
       {/* Payment History */}
 

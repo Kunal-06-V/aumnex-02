@@ -7,8 +7,6 @@ import { useRouter } from "next/navigation";
 
 import { auth, db } from "@/lib/firebase";
 
-import Sidebar from "@/components/Sidebar";
-import Topbar from "@/components/Topbar";
 import ProfileCard from "@/components/ProfileCard";
 import DashboardCard from "@/components/DashboardCard";
 import AttendanceChart from "@/components/AttendanceChart";
@@ -43,12 +41,9 @@ export default function StudentDashboard() {
     return () => unsubscribe();
   }, [router]);
 
-  return (
-    <div className="flex">
-      <Sidebar />
-
-      <main className="flex-1 ml-64 bg-gray-100 min-h-screen p-8">
-        <Topbar student={student} />
+ return (
+  <div className="bg-gray-100 min-h-screen">
+        
 
         <p className="text-gray-600 mb-6">
           Logged in as: {student?.email}
@@ -104,7 +99,7 @@ export default function StudentDashboard() {
        <div className="mt-8">
          <QuickActions />
        </div>
-      </main>
+      
     </div>
   );
 }

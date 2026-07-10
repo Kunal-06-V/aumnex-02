@@ -6,9 +6,13 @@ import {
   getDoc,
   collection,
   getDocs,
-} from "firebase/firestore"; import { db } from "@/lib/firebase";
+} from "firebase/firestore";
+ import { db } from "@/lib/firebase";
+import { ArrowLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 export default function StudentResults() {
+const router = useRouter();  
   const [semester, setSemester] = useState("Semester 4");
   const [result, setResult] = useState(null);
   const [subjects, setSubjects] = useState([]);
@@ -38,11 +42,11 @@ export default function StudentResults() {
           setSubjects([]);
         }
         const subjectsRef = collection(
-          db,
-          "results",
-          "student001_sem4",
-          "subjects"
-        );
+  db,
+  "results",
+  `student001_sem${semesterNumber}`,
+  "subjects"
+);
 
         const subjectsSnap = await getDocs(subjectsRef);
 
@@ -72,10 +76,19 @@ export default function StudentResults() {
   }
   if (!result) {
     return (
-      <div className="p-8 bg-gray-100 min-h-screen">
-        <h1 className="text-3xl font-bold text-blue-700 mb-6">
-          Academic Results
-        </h1>
+  <div className="space-y-8">
+
+    <button
+      onClick={() => router.back()}
+      className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium"
+    >
+      <ArrowLeft size={18} />
+      Back
+    </button>
+
+    <h1 className="text-3xl font-bold text-blue-700">
+      Academic Results
+    </h1>
 
         <div className="bg-white rounded-2xl shadow-lg p-8">
           <div className="mb-8">
@@ -113,11 +126,19 @@ export default function StudentResults() {
     );
   }
   return (
-    <div className="p-8 bg-gray-100 min-h-screen">
+  <div className="space-y-8">
 
-      <h1 className="text-3xl font-bold text-blue-700 mb-6">
-        Academic Results
-      </h1>
+    <button
+      onClick={() => router.back()}
+      className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium"
+    >
+      <ArrowLeft size={18} />
+      Back
+    </button>
+
+    <h1 className="text-3xl font-bold text-blue-700">
+      Academic Results
+    </h1>
 
       <div className="bg-white rounded-2xl shadow-lg p-8">
 

@@ -16,8 +16,8 @@ async function handleLogin(e) {
   try {
     await signInWithEmailAndPassword(auth, email, password);
 
-    alert("Login Successful!");
-    router.push("/student");
+alert("Login Successful!");
+router.push("/student/dashboard");
   } catch (error) {
     alert(error.message);
   }

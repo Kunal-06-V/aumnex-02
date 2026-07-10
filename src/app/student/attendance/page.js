@@ -72,7 +72,7 @@ export default function StudentAttendance() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-100 p-8">
+  <div className="space-y-8">
         <div className="animate-pulse space-y-6">
           <div className="h-10 bg-gray-300 rounded w-64"></div>
 
@@ -93,7 +93,7 @@ export default function StudentAttendance() {
 
   if (!attendance) {
     return (
-      <div className="min-h-screen bg-slate-100 flex justify-center items-center">
+      <div className="flex justify-center items-center min-h-[70vh]">
         <div className="bg-white rounded-2xl shadow-xl p-10 text-center">
           <h1 className="text-3xl font-bold">
             Attendance Not Available
@@ -107,13 +107,13 @@ export default function StudentAttendance() {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-slate-100 p-8">
+ return (
+  <div className="space-y-8">
 
-      <PageHeader
-        title="Attendance"
-        subtitle="Monitor your attendance performance"
-      />
+    <PageHeader
+      title="Attendance"
+      subtitle="Monitor your attendance performance"
+    />
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
 
@@ -130,7 +130,7 @@ export default function StudentAttendance() {
               </p>
 
               <h2 className="text-4xl font-bold mt-3">
-                {attendance.overallAttendance}%
+                {attendance.percentage}%
               </h2>
 
             </div>
@@ -159,7 +159,7 @@ export default function StudentAttendance() {
               </p>
 
               <h2 className="text-4xl font-bold text-green-600 mt-3">
-                {attendance.presentDays}
+                {attendance.present}
               </h2>
 
             </div>
@@ -188,7 +188,7 @@ export default function StudentAttendance() {
               </p>
 
               <h2 className="text-4xl font-bold text-red-600 mt-3">
-                {attendance.absentDays}
+                {attendance.absent}
               </h2>
 
             </div>
@@ -246,7 +246,7 @@ export default function StudentAttendance() {
           </h2>
 
           <span className="font-bold text-blue-600">
-            {attendance.overallAttendance}%
+            {attendance.percentage}%
           </span>
 
         </div>
@@ -256,7 +256,7 @@ export default function StudentAttendance() {
           <div
             className="h-full rounded-full bg-gradient-to-r from-green-500 to-blue-600 transition-all duration-700"
             style={{
-              width: `${attendance.overallAttendance}%`,
+              width: `${attendance.percentage}%`,
             }}
           />
 
