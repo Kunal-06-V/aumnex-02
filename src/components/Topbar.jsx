@@ -26,7 +26,7 @@ export default function Topbar({ student }) {
   async function handleLogout() {
     await signOut(auth);
 
-    router.push(isAdmin ? "/admin/login" : "/");
+    router.push(isAdmin ? "/" : "/");
   }
 
   function openProfile() {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Smartphone,
   PlayCircle,
@@ -11,6 +11,9 @@ import {
   GraduationCap,
   Users,
 } from "lucide-react";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { markAttendance } from "@/lib/attendanceService";
 
 export default function NFCReaderPage() {
   const [running, setRunning] = useState(false);
@@ -20,20 +23,84 @@ export default function NFCReaderPage() {
   const [semester, setSemester] = useState("Semester 4");
   const [division, setDivision] = useState("A");
 
-  function startAttendance() {
-    setRunning(true);
-  }
+   useEffect(() => {
+    initializeSession();
+  }, []);
+  
+  async function initializeSession() {
+  const sessionRef = doc(db, "attendanceSessions", "current");
 
-  function stopAttendance() {
-    setRunning(false);
+  const sessionSnap = await getDoc(sessionRef);
+
+  if (!sessionSnap.exists()) {
+    await setDoc(sessionRef, {
+      subject: "Not Selected",
+      faculty: "Not Selected",
+      semester: "Not Selected",
+      division: "Not Selected",
+      room: "Not Selected",
+      status: "inactive",
+      startTime: null,
+      createdAt: new Date(),
+    });
+
+    console.log("Attendance session created.");
+  } else {
+    console.log("Attendance session already exists.");
   }
+}
+
+ async function startAttendance() {
+  setRunning(true);
+
+  try {
+    await setDoc(
+      doc(db, "attendanceSessions", "current"),
+      {
+        subject,
+        semester,
+        division,
+        faculty: "Prof. Patil",
+        room: "A-203",
+        status: "active",
+        startTime: new Date(),
+      },
+      { merge: true }
+    );
+
+    alert("Attendance Session Started");
+  } catch (error) {
+    console.error("Error:", error);
+    alert(error.message);
+  }
+}
+  async function stopAttendance() {
+  setRunning(false);
+
+  try {
+    await setDoc(
+      doc(db, "attendanceSessions", "current"),
+      {
+        status: "inactive",
+      },
+      { merge: true }
+    );
+
+    console.log("Attendance Stopped");
+  } catch (error) {
+    console.error(error);
+  }
+}
 
   // Demo scan
-  function simulateScan() {
-    if (!running) return;
+ async function simulateScan() {
+  if (!running) return;
+
+  try {
+    const result = await markAttendance("student001");
 
     setLastStudent({
-      name: "Kunal Vijay Varal",
+      name: result.student,
       rollNo: "CSE23045",
       time: new Date().toLocaleTimeString([], {
         hour: "2-digit",
@@ -41,7 +108,12 @@ export default function NFCReaderPage() {
       }),
       status: "Present",
     });
+
+    alert("Attendance Marked Successfully");
+  } catch (error) {
+    alert(error.message);
   }
+}
     return (
     <div className="min-h-screen bg-gray-100 p-6">
 
