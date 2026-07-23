@@ -46,8 +46,8 @@ export default function LoginForm() {
 
       // Check Admin Collection
       const adminQuery = query(
-        collection(db, "admin"),
-        where("email", "==", email)
+      collection(db, "admin"),
+      where("uid", "==", auth.currentUser.uid)
       );
 
       const adminSnap = await getDocs(adminQuery);
@@ -59,9 +59,9 @@ export default function LoginForm() {
 
       // Check Student Collection
       const studentQuery = query(
-        collection(db, "students"),
-        where("email", "==", email)
-      );
+  collection(db, "students"),
+  where("uid", "==", auth.currentUser.uid)
+);
 
       const studentSnap = await getDocs(studentQuery);
 
