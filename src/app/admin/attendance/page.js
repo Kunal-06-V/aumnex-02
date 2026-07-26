@@ -20,6 +20,7 @@ import {
   X,
   CalendarCheck,
 } from "lucide-react";
+import toast from "react-hot-toast";
 
 const emptyForm = {
   id: "",
@@ -92,7 +93,7 @@ export default function AttendancePage() {
   async function handleSave() {
 
     if (!form.id || !form.studentName) {
-      alert("Student ID and Name are required.");
+      toast.error("Student ID and Name are required.");
       return;
     }
 
@@ -110,7 +111,7 @@ export default function AttendancePage() {
           status: form.status,
         });
 
-        alert("Attendance updated.");
+        toast.success("Attendance updated successfully.");
 
       } else {
 
@@ -119,7 +120,7 @@ export default function AttendancePage() {
           form
         );
 
-        alert("Attendance added.");
+       toast.success("Attendance added successfully.");
 
       }
 
@@ -129,7 +130,7 @@ export default function AttendancePage() {
     } catch (err) {
 
       console.error(err);
-      alert("Operation failed.");
+      toast.error("Failed to save attendance.");
 
     }
   }
@@ -146,7 +147,7 @@ export default function AttendancePage() {
     } catch (err) {
 
       console.error(err);
-      alert("Delete failed.");
+      toast.error("Failed to delete attendance.");
 
     }
 

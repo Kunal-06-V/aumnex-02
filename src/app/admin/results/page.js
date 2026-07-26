@@ -20,6 +20,7 @@ import {
   X,
   GraduationCap,
 } from "lucide-react";
+import toast from "react-hot-toast";
 
 const emptyForm = {
   id: "",
@@ -96,7 +97,7 @@ export default function ResultsPage() {
   async function handleSave() {
 
     if (!form.id || !form.studentName) {
-      alert("Student ID and Name are required.");
+      toast.error("Student ID and Name are required.");
       return;
     }
 
@@ -113,7 +114,7 @@ export default function ResultsPage() {
           status: form.status,
         });
 
-        alert("Result updated.");
+       toast.success("Result updated successfully.");
 
       } else {
 
@@ -122,7 +123,7 @@ export default function ResultsPage() {
           form
         );
 
-        alert("Result added.");
+        toast.success("Result added successfully.");
 
       }
 
@@ -132,7 +133,7 @@ export default function ResultsPage() {
     } catch (err) {
 
       console.error(err);
-      alert("Operation failed.");
+      toast.error("Failed to save result.");
 
     }
 
@@ -151,7 +152,7 @@ export default function ResultsPage() {
     } catch (err) {
 
       console.error(err);
-      alert("Delete failed.");
+     toast.error("Failed to delete result.");
 
     }
 

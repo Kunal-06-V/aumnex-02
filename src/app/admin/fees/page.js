@@ -20,6 +20,7 @@ import {
   X,
   IndianRupee,
 } from "lucide-react";
+import toast from "react-hot-toast";
 
 const emptyForm = {
   id: "",
@@ -98,7 +99,7 @@ export default function FeesPage() {
   async function handleSave() {
 
     if (!form.id || !form.studentName) {
-      alert("Student ID and Name are required.");
+      toast.error("Student ID and Name are required.");
       return;
     }
 
@@ -124,7 +125,7 @@ const percentagePaid =
   status: form.status,
 });
 
-        alert("Fees updated.");
+        toast.success("Fees updated successfully.");
 
       } else {
 
@@ -137,7 +138,7 @@ const percentagePaid =
   }
 );
 
-        alert("Fees record added.");
+        toast.success("Fees record added successfully.");
 
       }
 
@@ -147,7 +148,7 @@ const percentagePaid =
     } catch (err) {
 
       console.error(err);
-      alert("Operation failed.");
+      toast.error("Failed to save fee record.");
 
     }
 
@@ -166,7 +167,7 @@ const percentagePaid =
     } catch (err) {
 
       console.error(err);
-      alert("Delete failed.");
+      toast.error("Failed to delete fee record.");
 
     }
 

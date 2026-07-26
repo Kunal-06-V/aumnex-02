@@ -17,7 +17,7 @@ export default function AdminSettings() {
   const [autoBackup, setAutoBackup] = useState(true);
 
   function handleSave() {
-    alert("Settings saved successfully.");
+    toast.success("Settings saved successfully.");
   }
 
   return (

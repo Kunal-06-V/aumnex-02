@@ -20,6 +20,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import toast from "react-hot-toast";
 
 const emptyForm = {
   id: "",
@@ -89,7 +90,7 @@ export default function NotificationsPage() {
 
   async function handleSave() {
     if (!form.id || !form.title) {
-      alert("Notification ID and Title are required.");
+     toast.error("Notification ID and Title are required.");
       return;
     }
 
@@ -103,21 +104,21 @@ export default function NotificationsPage() {
           date: form.date,
         });
 
-        alert("Notification updated.");
+        toast.success("Notification updated successfully.");
       } else {
         await setDoc(
           doc(db, "notifications", form.id),
           form
         );
 
-        alert("Notification added.");
+        toast.success("Notification added successfully.");
       }
 
       resetForm();
       fetchNotifications();
     } catch (err) {
       console.error(err);
-      alert("Operation failed.");
+      toast.error("Failed to save notification.");
     }
   }
 
@@ -129,7 +130,7 @@ export default function NotificationsPage() {
       fetchNotifications();
     } catch (err) {
       console.error(err);
-      alert("Delete failed.");
+      toast.error("Failed to delete notification.");
     }
   }
 

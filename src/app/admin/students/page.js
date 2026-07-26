@@ -19,6 +19,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import toast from "react-hot-toast";
 
 const emptyForm = {
   id: "",
@@ -87,7 +88,7 @@ export default function StudentsPage() {
 
   async function handleSave() {
     if (!form.id || !form.name) {
-      alert("Student ID and Name are required.");
+     toast.error("Student ID and Name are required.");
       return;
     }
 
@@ -103,18 +104,18 @@ export default function StudentsPage() {
           semester: form.semester,
         });
 
-        alert("Student updated.");
+        toast.success("Student updated successfully.");
       } else {
         await setDoc(doc(db, "students", form.id), form);
 
-        alert("Student added.");
+        toast.success("Student added successfully.");
       }
 
       resetForm();
       fetchStudents();
     } catch (err) {
       console.error(err);
-      alert("Operation failed.");
+      toast.error("Failed to save student.");
     }
   }
 
@@ -127,7 +128,7 @@ export default function StudentsPage() {
       fetchStudents();
     } catch (err) {
       console.error(err);
-      alert("Delete failed.");
+      toast.error("Failed to delete student.");
     }
   }
 

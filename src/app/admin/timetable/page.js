@@ -13,6 +13,7 @@ import {
   CalendarDays,
   Save,
 } from "lucide-react";
+import toast from "react-hot-toast";
 
 const days = [
   "monday",
@@ -103,22 +104,22 @@ export default function AdminTimetablePage() {
 
       await updateDoc(ref, data[selectedDay]);
 
-      alert("Timetable updated successfully.");
+      toast.success("Timetable updated successfully.");
     } catch (err) {
       console.error(err);
-      alert("Failed to save timetable.");
+      toast.error("Failed to save timetable.");
     } finally {
       setSaving(false);
     }
   }
 
   if (loading) {
-    return (
-      <div className="space-y-8">
-        Loading timetable...
-      </div>
-    );
-  }
+  return (
+    <div className="flex justify-center items-center h-64 text-lg font-medium">
+      Loading timetable...
+    </div>
+  );
+}
 
   return (
     <div className="space-y-6">

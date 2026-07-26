@@ -68,10 +68,10 @@ export default function NFCReaderPage() {
       { merge: true }
     );
 
-    alert("Attendance Session Started");
+   toast.success("Attendance session started.");
   } catch (error) {
     console.error("Error:", error);
-    alert(error.message);
+    toast.error(error.message);
   }
 }
   async function stopAttendance() {
@@ -109,9 +109,9 @@ export default function NFCReaderPage() {
       status: "Present",
     });
 
-    alert("Attendance Marked Successfully");
+   toast.success("Attendance marked successfully.");
   } catch (error) {
-    alert(error.message);
+    toast.error(error.message);
   }
 }
     return (

@@ -48,19 +48,19 @@ async function handleSave(e) {
 
   // Validation
 if (formData.name.trim() === "") {
-  alert("Full Name is required.");
+  toast.error("Full Name is required.");
   setLoading(false);
   return;
 }
 
 if (formData.phone.length !== 10) {
-  alert("Phone number must be 10 digits.");
+  toast.error("Phone number must be valid.");
   setLoading(false);
   return;
 }
 
 if (formData.address.trim() === "") {
-  alert("Address is required.");
+  toast.error("Address is required.");
   setLoading(false);
   return;
 }
@@ -75,13 +75,13 @@ if (formData.address.trim() === "") {
       dob: formData.dob,
     });
 
-    alert("Profile updated successfully!");
+    toast.success("Profile updated successfully.");
     setLoading(false);
     router.push("/student/profile");
   } catch (error) {
     console.error(error);
     setLoading(false);
-    alert("Failed to update profile.");
+    toast.error("Failed to update profile.");
   }
 }
   return (
