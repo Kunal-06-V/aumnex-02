@@ -1,11 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { doc, getDoc } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { auth, db } from "@/lib/firebase";
+import { useStudent } from "@/context/StudentContext";
 
 import ProfileCard from "@/components/ProfileCard";
 import DashboardCard from "@/components/DashboardCard";
@@ -16,34 +14,8 @@ import NotificationPanel from "@/components/NotificationPanel";
 import QuickActions from "@/components/QuickActions";
 
 export default function StudentDashboard() {
-  const [student, setStudent] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  const router = useRouter();
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        router.push("/");
-        return;
-      }
-
-      try {
-        const studentRef = doc(db, "students", "student001");
-        const studentSnap = await getDoc(studentRef);
-
-        if (studentSnap.exists()) {
-          setStudent(studentSnap.data());
-        }
-      } catch (error) {
-        console.error(error);
-      } finally {
-        setLoading(false);
-      }
-    });
-
-    return () => unsubscribe();
-  }, [router]);
+  const { student, loading } = useStudent();
+  
 
   if (loading) {
     return (

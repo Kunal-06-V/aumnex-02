@@ -7,13 +7,13 @@ import toast from "react-hot-toast";
 import {
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
+  createUserWithEmailAndPassword,
 } from "firebase/auth";
 
 import {
-  collection,
-  query,
-  where,
-  getDocs,
+  doc,
+  getDoc,
+  setDoc,
 } from "firebase/firestore";
 
 import {
@@ -24,15 +24,21 @@ import {
 } from "lucide-react";
 
 import { auth, db } from "@/lib/firebase";
+import { useStudent } from "@/context/StudentContext";
 
 export default function LoginForm() {
   const router = useRouter();
+  const { setStudent } = useStudent();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isRegister, setIsRegister] = useState(false);
 
   async function handleLogin(e) {
     e.preventDefault();
@@ -45,38 +51,51 @@ export default function LoginForm() {
         email,
         password
       );
+      console.log("Logged In UID:", auth.currentUser.uid);
 
-      // Check Admin Collection
-      const adminQuery = query(
-        collection(db, "admin"),
-        where("uid", "==", auth.currentUser.uid)
-      );
+      // Check Admin Document
+      const adminRef = doc(db, "admin", auth.currentUser.uid);
 
-      const adminSnap = await getDocs(adminQuery);
+      const adminSnap = await getDoc(adminRef);
 
-      if (!adminSnap.empty) {
+      if (adminSnap.exists()) {
         toast.success("Welcome Admin!");
         router.push("/admin/dashboard");
         return;
       }
 
-      // Check Student Collection
-      const studentQuery = query(
-        collection(db, "students"),
-        where("uid", "==", auth.currentUser.uid)
-      );
+      // Check Student Document
+      const studentRef = doc(db, "students", auth.currentUser.uid);
 
-      const studentSnap = await getDocs(studentQuery);
+      console.log("Checking document:", studentRef.path);
 
-      if (!studentSnap.empty) {
-        toast.success("Welcome Student!");
+      const studentSnap = await getDoc(studentRef);
+
+      console.log("Document exists:", studentSnap.exists());
+
+      if (studentSnap.exists()) {
+        console.log("Student Data:", studentSnap.data());
+      }
+
+      if (studentSnap.exists()) {
+
+        const studentData = studentSnap.data();
+
+        setStudent(studentData);
+
+        toast.success(`Welcome ${studentData.name}!`);
+
         router.push("/student/dashboard");
+
         return;
       }
 
       toast.error("User record not found.");
 
     } catch (error) {
+      console.error("LOGIN ERROR:", error);
+      console.error("ERROR CODE:", error.code);
+      console.error("ERROR MESSAGE:", error.message);
       switch (error.code) {
         case "auth/invalid-credential":
           toast.error("Invalid email or password.");
@@ -107,6 +126,122 @@ export default function LoginForm() {
       setLoading(false);
     }
   }
+  async function handleRegister() {
+
+    if (!fullName.trim()) {
+      toast.error("Please enter your full name.");
+      return;
+    }
+
+    if (!phone.trim()) {
+      toast.error("Please enter your phone number.");
+      return;
+    }
+
+    if (!email.trim()) {
+      toast.error("Please enter your email.");
+      return;
+    }
+
+    if (password.length < 6) {
+      toast.error("Password must be at least 6 characters.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      toast.error("Passwords do not match.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+
+      const userCredential =
+        await createUserWithEmailAndPassword(
+          auth,
+          email,
+          password
+        );
+
+      console.log("New UID:", userCredential.user.uid);
+      const uid = userCredential.user.uid;
+
+await setDoc(doc(db, "students", uid), {
+  uid,
+  role: "student",
+  email,
+  status: "Active",
+
+  name: fullName,
+  email,
+  phone,
+
+  department: "",
+  semester: "",
+  division: "",
+  rollNo: "",
+  prn: "",
+
+  attendancePercentage: 0,
+  overallCGPA: 0,
+
+  totalFees: 0,
+  feesPaid: 0,
+  feesPending: 0,
+
+  profileImage: "",
+  nfcUid: "",
+
+  createdAt: new Date().toISOString(),
+});
+
+await setDoc(doc(db, "users", uid), {
+  uid,
+  role: "student",
+  email,
+});
+
+     toast.success("Registration successful!");
+     setFullName("");
+setPhone("");
+setEmail("");
+setPassword("");
+setConfirmPassword("");
+
+router.push("/student/dashboard");
+
+    } catch (error) {
+
+      console.error("REGISTER ERROR:", error);
+console.error("ERROR CODE:", error.code);
+console.error("ERROR MESSAGE:", error.message);
+
+      switch (error.code) {
+
+        case "auth/email-already-in-use":
+          toast.error("Email already registered.");
+          break;
+
+        case "auth/invalid-email":
+          toast.error("Invalid email.");
+          break;
+
+        case "auth/weak-password":
+          toast.error("Weak password.");
+          break;
+
+        default:
+          toast.error("Registration failed.");
+      }
+
+    } finally {
+
+      setLoading(false);
+
+    }
+
+  }
   async function handleForgotPassword() {
     if (!email.trim()) {
       toast.error("Please enter your email address first.");
@@ -136,7 +271,15 @@ export default function LoginForm() {
     <div className="w-full max-w-md">
 
       <form
-        onSubmit={handleLogin}
+        onSubmit={(e) => {
+          e.preventDefault();
+
+          if (isRegister) {
+            handleRegister();
+          } else {
+            handleLogin(e);
+          }
+        }}
         className="bg-white/90 backdrop-blur rounded-3xl shadow-2xl p-8 border border-gray-200"
       >
 
@@ -162,6 +305,33 @@ export default function LoginForm() {
         <p className="text-center text-gray-500 mt-2">
           Smart NFC Student Management System
         </p>
+        {/* Login / Register Tabs */}
+
+        <div className="mt-8 flex bg-gray-100 rounded-xl p-1">
+
+          <button
+            type="button"
+            onClick={() => setIsRegister(false)}
+            className={`w-1/2 py-2 rounded-lg font-semibold transition ${!isRegister
+              ? "bg-blue-600 text-white shadow"
+              : "text-gray-600"
+              }`}
+          >
+            Login
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsRegister(true)}
+            className={`w-1/2 py-2 rounded-lg font-semibold transition ${isRegister
+              ? "bg-blue-600 text-white shadow"
+              : "text-gray-600"
+              }`}
+          >
+            Register
+          </button>
+
+        </div>
 
         <div className="flex justify-center gap-6 mt-6">
 
@@ -180,6 +350,25 @@ export default function LoginForm() {
           </div>
 
         </div>
+        {/* Full Name (Register Only) */}
+
+        {isRegister && (
+          <div className="mt-8">
+
+            <label className="block text-sm font-medium mb-2">
+              Full Name
+            </label>
+
+            <input
+              type="text"
+              placeholder="Enter your full name"
+              className="w-full p-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+            />
+
+          </div>
+        )}
 
         {/* Email */}
 
@@ -199,6 +388,25 @@ export default function LoginForm() {
           />
 
         </div>
+        {/* Phone Number (Register Only) */}
+
+        {isRegister && (
+          <div className="mt-5">
+
+            <label className="block text-sm font-medium mb-2">
+              Phone Number
+            </label>
+
+            <input
+              type="text"
+              placeholder="Enter your phone number"
+              className="w-full p-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+            />
+
+          </div>
+        )}
 
         {/* Password */}
 
@@ -232,22 +440,41 @@ export default function LoginForm() {
                 <Eye size={20} />
               )}
             </button>
+            {isRegister && (
+              <div className="mt-5">
+
+                <label className="block text-sm font-medium mb-2">
+                  Confirm Password
+                </label>
+
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Confirm your password"
+                  className="w-full p-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+
+              </div>
+            )}
 
           </div>
 
         </div>
 
-        <div className="flex justify-end mt-3">
+        {!isRegister && (
+          <div className="flex justify-end mt-3">
 
-          <button
-            type="button"
-            onClick={handleForgotPassword}
-            className="text-sm text-blue-600 hover:underline"
-          >
-            Forgot Password?
-          </button>
+            <button
+              type="button"
+              onClick={handleForgotPassword}
+              className="text-sm text-blue-600 hover:underline"
+            >
+              Forgot Password?
+            </button>
 
-        </div>
+          </div>
+        )}
 
         <button
           type="submit"
@@ -255,13 +482,14 @@ export default function LoginForm() {
           className="w-full mt-8 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white py-3 rounded-xl font-semibold transition"
         >
           {loading
-            ? "Signing In..."
-            : "Login"}
+            ? (isRegister ? "Registering..." : "Signing In...")
+            : (isRegister ? "Register" : "Login")}
         </button>
 
         <p className="text-center text-gray-500 text-sm mt-6">
           One Login for Students & Admin
         </p>
+
 
       </form>
 

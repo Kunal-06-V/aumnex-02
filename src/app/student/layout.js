@@ -22,12 +22,14 @@ export default function StudentLayout({ children }) {
       }
 
       try {
-        const docRef = doc(db, "students", "student001");
-        const docSnap = await getDoc(docRef);
+       const studentQuery = doc(db, "students", user.uid);
+const studentSnap = await getDoc(studentQuery);
 
-        if (docSnap.exists()) {
-          setStudent(docSnap.data());
-        }
+if (studentSnap.exists()) {
+  setStudent(studentSnap.data());
+} else {
+  console.log("Student profile not found.");
+}
       } catch (error) {
         console.error(error);
       }
