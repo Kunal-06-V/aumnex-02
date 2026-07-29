@@ -26,6 +26,7 @@ export default function AttendancePage() {
   const [session, setSession] = useState(null);
   const [students, setStudents] = useState([]);
 const [attendance, setAttendance] = useState({});
+const [attendanceMethod, setAttendanceMethod] = useState({});
 const [saving, setSaving] = useState(false);
  async function handleLoadStudents(sessionData) {
 
@@ -86,9 +87,33 @@ async function handleSaveAttendance() {
     return;
   }
 
+  // Every student must be marked
+  if (Object.keys(attendance).length !== students.length) {
+    toast.error("Please mark attendance for every student.");
+    return;
+  }
+
+  const confirmSave = window.confirm(
+    `Save attendance for ${session.subject}?`
+  );
+
+  if (!confirmSave) return;
+
   setSaving(true);
 
   try {
+
+    const present = Object.values(attendance).filter(
+      (s) => s === "Present"
+    ).length;
+
+    const absent = Object.values(attendance).filter(
+      (s) => s === "Absent"
+    ).length;
+
+    const leave = Object.values(attendance).filter(
+      (s) => s === "Leave"
+    ).length;
 
     const sessionId = crypto.randomUUID();
 
@@ -99,43 +124,50 @@ async function handleSaveAttendance() {
       semester: session.semester,
       division: session.division,
       subject: session.subject,
+      totalStudents: students.length,
+      present,
+      absent,
+      leave,
       createdAt: serverTimestamp(),
     });
 
-    for (const student of students) {
-
-      await setDoc(
-        doc(
-          db,
-          "attendanceSessions",
-          sessionId,
-          "students",
-          student.uid
-        ),
-        {
-          uid: student.uid,
-          name: student.name,
-          rollNo: student.rollNo,
-          status: attendance[student.uid] || "Absent",
-          markedAt: serverTimestamp(),
-        }
-      );
-
-    }
+    await Promise.all(
+      students.map((student) =>
+        setDoc(
+          doc(
+            db,
+            "attendanceSessions",
+            sessionId,
+            "students",
+            student.uid
+          ),
+          {
+            uid: student.uid,
+            name: student.name,
+            rollNo: student.rollNo,
+            status: attendance[student.uid],
+            markedAt: serverTimestamp(),
+          }
+        )
+      )
+    );
 
     toast.success("Attendance Saved Successfully");
 
     setAttendance({});
+    setStudents([]);
+    setSession(null);
 
   } catch (error) {
 
     console.error(error);
-
     toast.error("Failed to save attendance.");
 
-  }
+  } finally {
 
-  setSaving(false);
+    setSaving(false);
+
+  }
 
 }
 
@@ -144,15 +176,17 @@ async function handleSaveAttendance() {
 
       <AttendanceHeader />
 
-      <AttendanceStats />
+      <AttendanceStats attendance={attendance} />
 
       <AttendanceSession
         onLoadStudents={handleLoadStudents}
       />
-      <AttendanceTable
+     <AttendanceTable
   students={students}
   attendance={attendance}
   setAttendance={setAttendance}
+  attendanceMethod={attendanceMethod}
+  setAttendanceMethod={setAttendanceMethod}
   onSaveAttendance={handleSaveAttendance}
   saving={saving}
 />

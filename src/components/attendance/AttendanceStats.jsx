@@ -7,38 +7,59 @@ import {
   Percent,
 } from "lucide-react";
 
-const stats = [
-  {
-    title: "Present",
-    value: 120,
-    icon: CheckCircle2,
-    bg: "bg-green-100",
-    color: "text-green-600",
-  },
-  {
-    title: "Absent",
-    value: 8,
-    icon: XCircle,
-    bg: "bg-red-100",
-    color: "text-red-600",
-  },
-  {
-    title: "Leave",
-    value: 2,
-    icon: Clock3,
-    bg: "bg-yellow-100",
-    color: "text-yellow-600",
-  },
-  {
-    title: "Attendance %",
-    value: "94%",
-    icon: Percent,
-    bg: "bg-blue-100",
-    color: "text-blue-600",
-  },
-];
+export default function AttendanceStats({ attendance = {} }) {
+  const values = Object.values(attendance);
 
-export default function AttendanceStats() {
+  const present = values.filter(
+    (item) => item === "Present"
+  ).length;
+
+  const absent = values.filter(
+    (item) => item === "Absent"
+  ).length;
+
+  const leave = values.filter(
+    (item) => item === "Leave"
+  ).length;
+
+  const totalMarked = values.length;
+
+  const attendancePercentage =
+    totalMarked === 0
+      ? 0
+      : Math.round((present / totalMarked) * 100);
+
+  const stats = [
+    {
+      title: "Present",
+      value: present,
+      icon: CheckCircle2,
+      bg: "bg-green-100",
+      color: "text-green-600",
+    },
+    {
+      title: "Absent",
+      value: absent,
+      icon: XCircle,
+      bg: "bg-red-100",
+      color: "text-red-600",
+    },
+    {
+      title: "Leave",
+      value: leave,
+      icon: Clock3,
+      bg: "bg-yellow-100",
+      color: "text-yellow-600",
+    },
+    {
+      title: "Attendance %",
+      value: `${attendancePercentage}%`,
+      icon: Percent,
+      bg: "bg-blue-100",
+      color: "text-blue-600",
+    },
+  ];
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
       {stats.map((item) => {
@@ -63,7 +84,10 @@ export default function AttendanceStats() {
               <div
                 className={`h-14 w-14 rounded-2xl flex items-center justify-center ${item.bg}`}
               >
-                <Icon className={item.color} size={28} />
+                <Icon
+                  className={item.color}
+                  size={28}
+                />
               </div>
             </div>
           </div>
