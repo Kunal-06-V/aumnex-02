@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   collection,
-  getDocs,
+  onSnapshot,
   orderBy,
   query,
 } from "firebase/firestore";
@@ -21,33 +21,34 @@ export default function AttendanceHistoryPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchSessions();
+    const q = query(
+      collection(db, "attendanceSessions"),
+      orderBy("createdAt", "desc")
+    );
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const data = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+
+        setSessions(data);
+        setLoading(false);
+      },
+      (error) => {
+        console.error(error);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
   }, []);
-
-  async function fetchSessions() {
-    try {
-      const q = query(
-        collection(db, "attendanceSessions"),
-        orderBy("createdAt", "desc")
-      );
-
-      const snapshot = await getDocs(q);
-
-      const data = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-
-      setSessions(data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-3xl p-8 text-white shadow-lg">
         <h1 className="text-4xl font-bold">
           Attendance History
@@ -58,6 +59,7 @@ export default function AttendanceHistoryPage() {
         </p>
       </div>
 
+      {/* Table */}
       <div className="bg-white rounded-3xl shadow-lg overflow-hidden">
 
         {loading ? (
@@ -77,7 +79,7 @@ export default function AttendanceHistoryPage() {
                 <th className="p-4">Department</th>
                 <th className="p-4">Semester</th>
                 <th className="p-4">Division</th>
-                <th className="p-4">Action</th>
+                <th className="p-4 text-center">Action</th>
               </tr>
             </thead>
 
@@ -85,7 +87,7 @@ export default function AttendanceHistoryPage() {
               {sessions.map((session) => (
                 <tr
                   key={session.id}
-                  className="border-t hover:bg-gray-50"
+                  className="border-t hover:bg-gray-50 transition"
                 >
                   <td className="p-4">
                     <div className="flex items-center gap-2">
@@ -116,10 +118,10 @@ export default function AttendanceHistoryPage() {
                     {session.division}
                   </td>
 
-                  <td className="p-4">
+                  <td className="p-4 text-center">
                     <Link
                       href={`/admin/attendance/history/${session.id}`}
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700"
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition"
                     >
                       <Eye size={18} />
                       View
@@ -130,6 +132,7 @@ export default function AttendanceHistoryPage() {
             </tbody>
           </table>
         )}
+
       </div>
     </div>
   );

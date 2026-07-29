@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
 import {
   collection,
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   updateDoc,
+  deleteDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
@@ -15,9 +16,15 @@ import {
   XCircle,
   Clock3,
 } from "lucide-react";
-
+import toast from "react-hot-toast";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { useRouter, useParams } from "next/navigation";
 export default function AttendanceSessionDetails() {
   const { sessionId } = useParams();
+  const router = useRouter();
   const [session, setSession] = useState(null);
 const [students, setStudents] = useState([]);
 const [loading, setLoading] = useState(true);
@@ -27,43 +34,40 @@ const [search, setSearch] = useState("");
 const [filter, setFilter] = useState("All");
 
   useEffect(() => {
-    if (sessionId) {
-      loadSession();
+  if (!sessionId) return;
+
+  const sessionRef = doc(db, "attendanceSessions", sessionId);
+
+  const unsubscribeSession = onSnapshot(sessionRef, (snapshot) => {
+    if (snapshot.exists()) {
+      setSession(snapshot.data());
     }
-  }, [sessionId]);
+  });
 
-  async function loadSession() {
-    try {
-      // Load session details
-      const sessionRef = doc(db, "attendanceSessions", sessionId);
-      const sessionSnap = await getDoc(sessionRef);
+  const studentsRef = collection(
+    db,
+    "attendanceSessions",
+    sessionId,
+    "students"
+  );
 
-      if (sessionSnap.exists()) {
-        setSession(sessionSnap.data());
-      }
+  const unsubscribeStudents = onSnapshot(studentsRef, (snapshot) => {
+    const data = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
 
-      // Load students
-      const studentsRef = collection(
-        db,
-        "attendanceSessions",
-        sessionId,
-        "students"
-      );
+    setStudents(data);
+    setLoading(false);
+  });
 
-      const studentSnap = await getDocs(studentsRef);
+  return () => {
+    unsubscribeSession();
+    unsubscribeStudents();
+  };
+}, [sessionId]);
 
-      const data = studentSnap.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-
-      setStudents(data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }
+  
   function updateStudentStatus(studentId, status) {
     setStudents((prev) =>
       prev.map((student) =>
@@ -91,15 +95,151 @@ const [filter, setFilter] = useState("All");
         });
       }
 
-      alert("Attendance updated successfully!");
+      toast.success("Attendance updated successfully!");
     } catch (error) {
       console.error(error);
-      alert("Failed to update attendance.");
+      toast.error("Failed to update attendance.");
     } finally {
       setSaving(false);
     }
   }
+  async function deleteSession() {
+  const confirmed = window.confirm(
+    "Are you sure you want to delete this attendance session?"
+  );
 
+  if (!confirmed) return;
+
+  try {
+    // Get all student documents
+    const studentsRef = collection(
+      db,
+      "attendanceSessions",
+      sessionId,
+      "students"
+    );
+
+    const snapshot = await getDocs(studentsRef);
+
+    // Delete every student attendance document
+    for (const studentDoc of snapshot.docs) {
+      await deleteDoc(studentDoc.ref);
+    }
+
+    // Delete session document
+    await deleteDoc(
+      doc(db, "attendanceSessions", sessionId)
+    );
+
+    toast.success("Attendance session deleted successfully");
+
+    router.push("/admin/attendance/history");
+
+  } catch (error) {
+    console.error(error);
+    toast.error("Failed to delete attendance session.");
+  }
+}
+function exportToExcel() {
+  if (!session || students.length === 0) {
+    toast.error("No attendance data available.");
+    return;
+  }
+
+  const data = students.map((student, index) => ({
+    "Sr No": index + 1,
+    "Roll No": student.rollNo,
+    Name: student.name,
+    Status: student.status,
+    Method: student.method || "Manual",
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(data);
+
+  // Set column widths
+  worksheet["!cols"] = [
+    { wch: 8 },
+    { wch: 15 },
+    { wch: 30 },
+    { wch: 15 },
+    { wch: 15 },
+  ];
+
+  const workbook = XLSX.utils.book_new();
+
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance");
+
+  const excelBuffer = XLSX.write(workbook, {
+    bookType: "xlsx",
+    type: "array",
+  });
+
+  const file = new Blob([excelBuffer], {
+    type:
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+
+  saveAs(
+    file,
+    `Attendance_${session.subject}_${session.semester}_${session.division}.xlsx`
+  );
+
+  toast.success("Excel exported successfully!");
+}
+function exportToPDF() {
+  if (!session || students.length === 0) {
+    toast.error("No attendance data available.");
+    return;
+  }
+
+  const doc = new jsPDF();
+
+  // Title
+  doc.setFontSize(20);
+  doc.text("AUMNex", 105, 15, { align: "center" });
+
+  doc.setFontSize(16);
+  doc.text("Attendance Report", 105, 25, { align: "center" });
+
+  // Session Information
+  doc.setFontSize(11);
+
+  doc.text(`Subject: ${session.subject}`, 14, 40);
+  doc.text(`Semester: ${session.semester}`, 14, 48);
+  doc.text(`Division: ${session.division}`, 14, 56);
+
+  if (session.department) {
+    doc.text(`Department: ${session.department}`, 14, 64);
+  }
+
+  doc.text(`Date: ${new Date().toLocaleDateString()}`, 14, 72);
+
+  // Summary
+  doc.text(`Total Students: ${students.length}`, 130, 40);
+  doc.text(`Present: ${present}`, 130, 48);
+  doc.text(`Absent: ${absent}`, 130, 56);
+  doc.text(`Leave: ${leave}`, 130, 64);
+
+  autoTable(doc, {
+    startY: 82,
+
+    head: [["Sr", "Roll No", "Name", "Status", "Method"]],
+
+    body: students.map((student, index) => [
+      index + 1,
+      student.rollNo,
+      student.name,
+      student.status,
+      student.method || "Manual",
+    ]),
+  });
+
+  doc.save(
+    `Attendance_${session.subject}_${session.semester}_${session.division}.pdf`
+  );
+
+  toast.success("PDF exported successfully!");
+}
   const present = students.filter(
     (s) => s.status === "Present"
   ).length;
@@ -265,15 +405,41 @@ const [filter, setFilter] = useState("All");
           </tbody>
 
         </table>
-        <div className="flex justify-end p-6">
-          <button
-            onClick={saveChanges}
-            disabled={saving}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold"
-          >
-            {saving ? "Saving..." : "Save Changes"}
-          </button>
-        </div>
+       <div className="flex justify-between items-center p-6">
+
+  <div className="flex gap-3">
+
+    <button
+      onClick={deleteSession}
+      className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl font-semibold"
+    >
+      Delete Session
+    </button>
+
+    <button
+      onClick={exportToExcel}
+      className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-semibold"
+    >
+      Export Excel
+    </button>
+    <button
+  onClick={exportToPDF}
+  className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-xl font-semibold"
+>
+  Export PDF
+</button>
+
+  </div>
+
+  <button
+    onClick={saveChanges}
+    disabled={saving}
+    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold disabled:opacity-50"
+  >
+    {saving ? "Saving..." : "Save Changes"}
+  </button>
+
+</div>
       </div>
 
     </div>
