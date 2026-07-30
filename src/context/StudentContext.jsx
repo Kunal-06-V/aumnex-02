@@ -21,46 +21,62 @@ export function StudentProvider({ children }) {
   // 👇 ADD useEffect HERE
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+  let unsubscribeSnapshot = null;
 
-      if (!user) {
-        setStudent(null);
-        setLoading(false);
-        return;
-      }
+  const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+    if (unsubscribeSnapshot) {
+      unsubscribeSnapshot();
+      unsubscribeSnapshot = null;
+    }
 
-      try {
-        const studentRef = doc(db, "students", user.uid);
+    if (!user) {
+      setStudent(null);
+      setLoading(false);
+      return;
+    }
 
-const unsubscribeSnapshot = onSnapshot(
+    const studentRef = doc(db, "students", user.uid);
+    console.log("Firebase User:", user.email, user.uid);
+
+    unsubscribeSnapshot = onSnapshot(
   studentRef,
   (studentSnap) => {
 
+    console.log("Document Exists:", studentSnap.exists());
+
     if (studentSnap.exists()) {
-      setStudent(studentSnap.data());
+
+      console.log("Student Data:", studentSnap.data());
+
+      setStudent({
+        uid: user.uid,
+        ...studentSnap.data(),
+      });
+
     } else {
+
+      console.log("Student profile not found");
+
       setStudent(null);
     }
 
     setLoading(false);
-
   },
-  (error) => {
-    console.error(error);
-    setLoading(false);
-  }
-);
-
-      } catch (error) {
+      (error) => {
         console.error(error);
-      } 
+        setLoading(false);
+      }
+    );
+  });
 
-    });
+  return () => {
+    unsubscribeAuth();
 
-   return () => {
-  unsubscribeSnapshot();
-};
-  }, []);
+    if (unsubscribeSnapshot) {
+      unsubscribeSnapshot();
+    }
+  };
+}, []);
 
   //  // Provider Start here 
   return (

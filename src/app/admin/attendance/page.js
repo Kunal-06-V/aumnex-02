@@ -25,151 +25,153 @@ import AttendanceTable from "@/components/attendance/AttendanceTable";
 export default function AttendancePage() {
   const [session, setSession] = useState(null);
   const [students, setStudents] = useState([]);
-const [attendance, setAttendance] = useState({});
-const [attendanceMethod, setAttendanceMethod] = useState({});
-const [saving, setSaving] = useState(false);
- async function handleLoadStudents(sessionData) {
+  const [attendance, setAttendance] = useState({});
+  const [attendanceMethod, setAttendanceMethod] = useState({});
+  const [saving, setSaving] = useState(false);
 
-  try {
 
-    setSession(sessionData);
+  async function handleLoadStudents(sessionData) {
 
-    const q = query(
-      collection(db, "students"),
+    try {
+      console.log("Session Data:", sessionData);
+      setSession(sessionData);
 
-      where(
-        "department",
-        "==",
-        sessionData.department
-      ),
+      const q = query(
+        collection(db, "students"),
 
-      where(
-        "semester",
-        "==",
-        sessionData.semester
-      ),
+        where(
+          "department",
+          "==",
+          sessionData.department
+        ),
 
-      where(
-        "division",
-        "==",
-        sessionData.division
-      )
+        where(
+          "semester",
+          "==",
+          sessionData.semester
+        ),
 
-    );
-
-    const snapshot = await getDocs(q);
-
-    const data = snapshot.docs.map((doc) => ({
-      uid: doc.id,
-      ...doc.data(),
-    }));
-
-    console.log(data);
-
-    setStudents(data);
-
-  } catch (error) {
-
-    console.error(error);
-
-  }
-
-}
-async function handleSaveAttendance() {
-
-  if (!session) {
-    toast.error("Load students first.");
-    return;
-  }
-
-  if (students.length === 0) {
-    toast.error("No students found.");
-    return;
-  }
-
-  // Every student must be marked
-  if (Object.keys(attendance).length !== students.length) {
-    toast.error("Please mark attendance for every student.");
-    return;
-  }
-
-  const confirmSave = window.confirm(
-    `Save attendance for ${session.subject}?`
-  );
-
-  if (!confirmSave) return;
-
-  setSaving(true);
-
-  try {
-
-    const present = Object.values(attendance).filter(
-      (s) => s === "Present"
-    ).length;
-
-    const absent = Object.values(attendance).filter(
-      (s) => s === "Absent"
-    ).length;
-
-    const leave = Object.values(attendance).filter(
-      (s) => s === "Leave"
-    ).length;
-
-    const sessionId = crypto.randomUUID();
-
-    await setDoc(doc(db, "attendanceSessions", sessionId), {
-      sessionId,
-      date: session.date,
-      department: session.department,
-      semester: session.semester,
-      division: session.division,
-      subject: session.subject,
-      totalStudents: students.length,
-      present,
-      absent,
-      leave,
-      createdAt: serverTimestamp(),
-    });
-
-    await Promise.all(
-      students.map((student) =>
-        setDoc(
-          doc(
-            db,
-            "attendanceSessions",
-            sessionId,
-            "students",
-            student.uid
-          ),
-          {
-            uid: student.uid,
-            name: student.name,
-            rollNo: student.rollNo,
-            status: attendance[student.uid],
-            markedAt: serverTimestamp(),
-          }
+        where(
+          "division",
+          "==",
+          sessionData.division
         )
-      )
-    );
 
-    toast.success("Attendance Saved Successfully");
+      );
 
-    setAttendance({});
-    setStudents([]);
-    setSession(null);
+      const snapshot = await getDocs(q);
 
-  } catch (error) {
+      const data = snapshot.docs.map((doc) => ({
+        uid: doc.id,
+        ...doc.data(),
+      }));
 
-    console.error(error);
-    toast.error("Failed to save attendance.");
+      console.log(data);
 
-  } finally {
+      setStudents(data);
 
-    setSaving(false);
+    } catch (error) {
+
+      console.error(error);
+
+    }
 
   }
+  async function handleSaveAttendance() {
 
-}
+    if (!session) {
+      toast.error("Load students first.");
+      return;
+    }
+
+    if (students.length === 0) {
+      toast.error("No students found.");
+      return;
+    }
+
+    // Every student must be marked
+    if (Object.keys(attendance).length !== students.length) {
+      toast.error("Please mark attendance for every student.");
+      return;
+    }
+
+    const confirmSave = window.confirm(
+      `Save attendance for ${session.subject}?`
+    );
+
+    if (!confirmSave) return;
+
+    setSaving(true);
+
+    try {
+
+      const present = Object.values(attendance).filter(
+        (s) => s === "Present"
+      ).length;
+
+      const absent = Object.values(attendance).filter(
+        (s) => s === "Absent"
+      ).length;
+
+      const leave = Object.values(attendance).filter(
+        (s) => s === "Leave"
+      ).length;
+
+      const sessionId = crypto.randomUUID();
+
+      await setDoc(doc(db, "attendanceSessions", sessionId), {
+        sessionId,
+        date: session.date,
+        department: session.department,
+        semester: session.semester,
+        division: session.division,
+        subject: session.subject,
+        totalStudents: students.length,
+        present,
+        absent,
+        leave,
+        createdAt: serverTimestamp(),
+      });
+
+      await Promise.all(
+        students.map((student) =>
+          setDoc(
+            doc(
+              db,
+              "attendanceSessions",
+              sessionId,
+              "students",
+              student.uid
+            ),
+            {
+              uid: student.uid,
+              name: student.name,
+              rollNo: student.rollNo,
+              status: attendance[student.uid],
+              markedAt: serverTimestamp(),
+            }
+          )
+        )
+      );
+
+      toast.success("Attendance Saved Successfully");
+
+      setAttendance({});
+      setStudents([]);
+      setSession(null);
+
+    } catch (error) {
+
+      console.error(error);
+      toast.error("Failed to save attendance.");
+
+    } finally {
+
+      setSaving(false);
+
+    }
+
+  }
 
   return (
     <div className="space-y-8">
@@ -181,15 +183,15 @@ async function handleSaveAttendance() {
       <AttendanceSession
         onLoadStudents={handleLoadStudents}
       />
-     <AttendanceTable
-  students={students}
-  attendance={attendance}
-  setAttendance={setAttendance}
-  attendanceMethod={attendanceMethod}
-  setAttendanceMethod={setAttendanceMethod}
-  onSaveAttendance={handleSaveAttendance}
-  saving={saving}
-/>
+      <AttendanceTable
+        students={students}
+        attendance={attendance}
+        setAttendance={setAttendance}
+        attendanceMethod={attendanceMethod}
+        setAttendanceMethod={setAttendanceMethod}
+        onSaveAttendance={handleSaveAttendance}
+        saving={saving}
+      />
 
     </div>
   );

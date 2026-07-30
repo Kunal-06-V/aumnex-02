@@ -10,7 +10,6 @@ import {
   IndianRupee,
   CalendarDays,
   Bell,
-  Smartphone,
   ShieldAlert,
   LogOut,
 } from "lucide-react";
@@ -20,11 +19,6 @@ const menuItems = [
     title: "Dashboard",
     href: "/student/dashboard",
     icon: LayoutDashboard,
-  },
-  {
-    title: "NFC Attendance",
-    href: "/student/nfc-attendance",
-    icon: Smartphone,
   },
   {
     title: "Attendance",
@@ -57,6 +51,7 @@ const menuItems = [
     icon: ShieldAlert,
   },
 ];
+
 export default function StudentSidebar() {
   const pathname = usePathname();
 
@@ -90,6 +85,7 @@ export default function StudentSidebar() {
               }`}
             >
               <Icon size={20} />
+
               <span className="font-medium">
                 {item.title}
               </span>

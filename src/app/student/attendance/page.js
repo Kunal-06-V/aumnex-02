@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from "react";
 import {
-  doc,
-  getDoc,
   collection,
   getDocs,
 } from "firebase/firestore";
@@ -17,58 +15,146 @@ import {
 
 import { db } from "@/lib/firebase";
 import PageHeader from "@/components/PageHeader";
+import { useStudent } from "@/context/StudentContext";
 
 export default function StudentAttendance() {
-  const [attendance, setAttendance] = useState(null);
-  const [subjects, setSubjects] = useState([]);
+ const { student } = useStudent();
+
+const [attendance, setAttendance] = useState({
+  percentage: 0,
+  present: 0,
+  absent: 0,
+  leave: 0,
+  total: 0,
+  status: "Poor",
+});
+
+const [subjects, setSubjects] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchAttendance();
-  }, []);
+useEffect(() => {
+  if (!student?.uid) {
+    setLoading(false);
+    return;
+  }
 
-  async function fetchAttendance() {
+  async function loadAttendance() {
     try {
       setLoading(true);
 
-      const attendanceRef = doc(
-        db,
-        "attendance",
-        "student001"
+      let present = 0;
+      let absent = 0;
+      let leave = 0;
+
+      const subjectMap = {};
+
+      // Read all attendance sessions
+      const sessionsSnapshot = await getDocs(
+        collection(db, "attendanceSessions")
       );
 
-      const attendanceSnap = await getDoc(attendanceRef);
+      for (const sessionDoc of sessionsSnapshot.docs) {
+        const session = sessionDoc.data();
 
-      if (!attendanceSnap.exists()) {
-        setAttendance(null);
-        setSubjects([]);
-        return;
+        // Read students inside this session
+        const studentsSnapshot = await getDocs(
+          collection(
+            db,
+            "attendanceSessions",
+            sessionDoc.id,
+            "students"
+          )
+        );
+
+        studentsSnapshot.forEach((studentDoc) => {
+          const data = studentDoc.data();
+
+          // Skip other students
+          if (data.uid !== student.uid) return;
+
+          // Count overall attendance
+          if (data.status === "Present") {
+            present++;
+          } else if (data.status === "Absent") {
+            absent++;
+          } else {
+            leave++;
+          }
+
+          const subject = session.subject || "Unknown";
+
+          // Subject wise
+          if (!subjectMap[subject]) {
+            subjectMap[subject] = {
+              id: subject,
+              subject,
+              present: 0,
+              total: 0,
+            };
+          }
+
+          subjectMap[subject].total++;
+
+          if (data.status === "Present") {
+            subjectMap[subject].present++;
+          }
+        });
       }
 
-      setAttendance(attendanceSnap.data());
+      const total = present + absent + leave;
 
-      const subjectsRef = collection(
-        db,
-        "attendance",
-        "student001",
-        "subjects"
-      );
+      const percentage =
+        total === 0
+          ? 0
+          : Math.round((present / total) * 100);
 
-      const subjectsSnap = await getDocs(subjectsRef);
+      const subjectList = Object.values(subjectMap).map((item) => {
 
-      const list = subjectsSnap.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+        const percent =
+          item.total === 0
+            ? 0
+            : Math.round(
+                (item.present / item.total) * 100
+              );
 
-      setSubjects(list);
+        return {
+          ...item,
+          percentage: percent,
+          status:
+            percent >= 90
+              ? "Excellent"
+              : percent >= 75
+              ? "Good"
+              : "Poor",
+        };
+      });
 
-    } catch (err) {
-      console.error(err);
+      setAttendance({
+        percentage,
+        present,
+        absent,
+        leave,
+        total,
+        status:
+          percentage >= 90
+            ? "Excellent"
+            : percentage >= 75
+            ? "Good"
+            : "Poor",
+      });
+
+      setSubjects(subjectList);
+
+    } catch (error) {
+      console.error(error);
     } finally {
       setLoading(false);
     }
   }
+
+  loadAttendance();
+}, [student]);
+
 
   if (loading) {
     return (
@@ -110,10 +196,21 @@ export default function StudentAttendance() {
  return (
   <div className="space-y-8">
 
-    <PageHeader
-      title="Attendance"
-      subtitle="Monitor your attendance performance"
-    />
+    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+
+  <PageHeader
+    title="Attendance"
+    subtitle="Monitor your attendance performance"
+  />
+
+  <a
+    href="/student/attendance-history"
+    className="inline-flex items-center justify-center px-5 py-3 rounded-xl bg-slate-900 text-white hover:bg-slate-800 transition font-medium"
+  >
+    View Full History →
+  </a>
+
+</div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
 
