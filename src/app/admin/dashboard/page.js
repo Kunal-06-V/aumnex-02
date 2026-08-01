@@ -24,11 +24,18 @@ export default function AdminDashboard() {
 
   const [stats, setStats] = useState({
     students: 0,
-    attendance: 0,
-    feesCollected: 0,
-    notifications: 0,
+    sessions: 0,
+    departments: 0,
+    todayAttendance: 0,
   });
+  const [recentSessions, setRecentSessions] = useState([]);
 
+  const [todaySummary, setTodaySummary] = useState({
+    sessions: 0,
+    present: 0,
+    absent: 0,
+    percentage: 0,
+  });
   useEffect(() => {
     loadDashboard();
   }, []);
@@ -39,44 +46,111 @@ export default function AdminDashboard() {
 
       const [
         studentsSnap,
-        attendanceSnap,
-        feesSnap,
-        notificationsSnap,
+        sessionsSnap,
       ] = await Promise.all([
         getDocs(collection(db, "students")),
-        getDocs(collection(db, "attendance")),
-        getDocs(collection(db, "fees")),
-        getDocs(collection(db, "notifications")),
+        getDocs(collection(db, "attendanceSessions")),
       ]);
+      const sessions = [];
 
-      let totalAttendance = 0;
+      const departments = new Set();
 
-      attendanceSnap.forEach((doc) => {
-        totalAttendance += Number(
-          doc.data().percentage || 0
-        );
-      });
+      let totalPresent = 0;
+      let totalStudents = 0;
 
-      const averageAttendance =
-        attendanceSnap.size > 0
-          ? Math.round(
-              totalAttendance / attendanceSnap.size
+      // Today's Attendance Summary
+      let todaySessions = 0;
+      let todayPresent = 0;
+      let todayAbsent = 0;
+
+      const today = new Date().toISOString().split("T")[0];
+
+      for (const sessionDoc of sessionsSnap.docs) {
+
+        const session = sessionDoc.data();
+
+        let present = 0;
+        let absent = 0;
+        if (session.department) {
+          departments.add(session.department);
+        }
+
+        if (session.date === today) {
+
+          todaySessions++;
+
+          const studentsSnap = await getDocs(
+            collection(
+              db,
+              "attendanceSessions",
+              sessionDoc.id,
+              "students"
             )
-          : 0;
+          );
+          studentsSnap.forEach((studentDoc) => {
 
-      let totalFees = 0;
+            const status = studentDoc.data().status;
 
-      feesSnap.forEach((doc) => {
-        totalFees += Number(
-          doc.data().paidFees || 0
-        );
+            if (status === "Present") {
+              present++;
+            }
+
+            if (status === "Absent") {
+              absent++;
+            }
+
+          });
+
+          studentsSnap.forEach((studentDoc) => {
+
+            totalStudents++;
+
+            const status = studentDoc.data().status;
+
+            if (status === "Present") {
+              totalPresent++;
+              todayPresent++;
+            } else if (status === "Absent") {
+              todayAbsent++;
+            }
+
+          });
+
+        }
+        sessions.push({
+          id: sessionDoc.id,
+          ...session,
+          present,
+          absent,
+        });
+      }
+
+      const todayPercentage =
+        todayPresent + todayAbsent === 0
+          ? 0
+          : Math.round(
+            (todayPresent / (todayPresent + todayAbsent)) * 100);
+            const todayAttendance = todayPercentage;
+      sessions.sort(
+        (a, b) =>
+          b.createdAt.seconds -
+          a.createdAt.seconds
+      );
+
+      setRecentSessions(
+        sessions.slice(0, 5)
+      );
+      setTodaySummary({
+        sessions: todaySessions,
+        present: todayPresent,
+        absent: todayAbsent,
+        percentage: todayPercentage,
       });
-
       setStats({
         students: studentsSnap.size,
-        attendance: averageAttendance,
-        feesCollected: totalFees,
-        notifications: notificationsSnap.size,
+        sessions: sessionsSnap.size,
+        departments: departments.size,
+        todayAttendance,
       });
 
     } catch (err) {
@@ -103,25 +177,25 @@ export default function AdminDashboard() {
       iconColor: "text-blue-600",
     },
     {
-      title: "Attendance",
-      value: `${stats.attendance}%`,
+      title: "Attendance Sessions",
+      value: stats.sessions,
       icon: CalendarCheck,
       color: "bg-green-100",
       iconColor: "text-green-600",
     },
     {
-      title: "Fees Collected",
-      value: `₹${stats.feesCollected.toLocaleString()}`,
-      icon: IndianRupee,
-      color: "bg-yellow-100",
-      iconColor: "text-yellow-600",
+      title: "Departments",
+      value: stats.departments,
+      icon: Users,
+      color: "bg-purple-100",
+      iconColor: "text-purple-600",
     },
     {
-      title: "Notifications",
-      value: stats.notifications,
-      icon: Bell,
-      color: "bg-red-100",
-      iconColor: "text-red-600",
+      title: "Today's Attendance",
+      value: `${stats.todayAttendance}%`,
+      icon: CalendarCheck,
+      color: "bg-orange-100",
+      iconColor: "text-orange-600",
     },
   ];
 
@@ -213,7 +287,58 @@ export default function AdminDashboard() {
         })}
 
       </div>
-            <div className="bg-white rounded-2xl shadow-md p-6">
+      <div className="bg-white rounded-2xl shadow-md p-6">
+
+        <h2 className="text-2xl font-bold mb-6">
+          Today's Attendance Summary
+        </h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+
+          <div className="bg-blue-50 rounded-xl p-4">
+            <p className="text-gray-500 text-sm">
+              Sessions Today
+            </p>
+
+            <h3 className="text-3xl font-bold text-blue-600 mt-2">
+              {todaySummary.sessions}
+            </h3>
+          </div>
+
+          <div className="bg-green-50 rounded-xl p-4">
+            <p className="text-gray-500 text-sm">
+              Present Students
+            </p>
+
+            <h3 className="text-3xl font-bold text-green-600 mt-2">
+              {todaySummary.present}
+            </h3>
+          </div>
+
+          <div className="bg-red-50 rounded-xl p-4">
+            <p className="text-gray-500 text-sm">
+              Absent Students
+            </p>
+
+            <h3 className="text-3xl font-bold text-red-600 mt-2">
+              {todaySummary.absent}
+            </h3>
+          </div>
+
+          <div className="bg-yellow-50 rounded-xl p-4">
+            <p className="text-gray-500 text-sm">
+              Attendance %
+            </p>
+
+            <h3 className="text-3xl font-bold text-yellow-600 mt-2">
+              {todaySummary.percentage}%
+            </h3>
+          </div>
+
+        </div>
+
+      </div>
+      <div className="bg-white rounded-2xl shadow-md p-6">
 
         <h2 className="text-2xl font-bold mb-6">
           Quick Actions
@@ -244,54 +369,76 @@ export default function AdminDashboard() {
         </div>
 
       </div>
-
       <div className="bg-white rounded-2xl shadow-md p-6">
 
-        <h2 className="text-2xl font-bold mb-6">
-          Live Database Summary
-        </h2>
+        <div className="flex justify-between items-center mb-6">
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          <h2 className="text-2xl font-bold">
+            Recent Attendance Sessions
+          </h2>
 
-          <div className="text-center">
-            <p className="text-gray-500 text-sm">
-              Students
-            </p>
-            <h3 className="text-3xl font-bold text-blue-600 mt-2">
-              {stats.students}
-            </h3>
-          </div>
+          <Link
+            href="/admin/attendance/history"
+            className="text-blue-600 hover:underline"
+          >
+            View All →
+          </Link>
 
-          <div className="text-center">
-            <p className="text-gray-500 text-sm">
-              Attendance
-            </p>
-            <h3 className="text-3xl font-bold text-green-600 mt-2">
-              {stats.attendance}%
-            </h3>
-          </div>
+        </div>
 
-          <div className="text-center">
-            <p className="text-gray-500 text-sm">
-              Fees Collected
-            </p>
-            <h3 className="text-3xl font-bold text-yellow-600 mt-2">
-              ₹{stats.feesCollected.toLocaleString()}
-            </h3>
-          </div>
+        <div className="text-center py-12 text-gray-500">
 
-          <div className="text-center">
-            <p className="text-gray-500 text-sm">
-              Notifications
-            </p>
-            <h3 className="text-3xl font-bold text-red-600 mt-2">
-              {stats.notifications}
-            </h3>
-          </div>
+          {recentSessions.length === 0 ? (
+
+            <div className="text-center py-12 text-gray-500">
+              No Recent Sessions
+            </div>
+
+          ) : (
+
+            <div className="space-y-4">
+
+              {recentSessions.map((session) => (
+
+                <div
+                  key={session.id}
+                  className="border rounded-xl p-4 flex justify-between items-center"
+                >
+
+                  <div>
+
+                    <h3 className="font-semibold">
+                      {session.subject}
+                    </h3>
+
+                    <p className="text-sm text-gray-500">
+                      {session.department}
+                      {" • "}
+                      Semester {session.semester}
+                    </p>
+
+                  </div>
+
+                  <div className="text-right">
+
+                    <p className="text-sm text-gray-500">
+                      {session.date}
+                    </p>
+
+                  </div>
+
+                </div>
+
+              ))}
+
+            </div>
+
+          )}
 
         </div>
 
       </div>
+
 
     </div>
 

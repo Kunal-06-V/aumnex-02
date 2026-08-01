@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   collection,
   getDocs,
@@ -42,7 +43,7 @@ export default function StudentsPage() {
   const [editing, setEditing] = useState(false);
 
   const [form, setForm] = useState(emptyForm);
-
+  const router = useRouter();
   useEffect(() => {
     fetchStudents();
   }, []);
@@ -88,7 +89,7 @@ export default function StudentsPage() {
 
   async function handleSave() {
     if (!form.id || !form.name) {
-     toast.error("Student ID and Name are required.");
+      toast.error("Student ID and Name are required.");
       return;
     }
 
@@ -199,8 +200,8 @@ export default function StudentsPage() {
               placeholder="Student ID"
               disabled={editing}
               value={form.id}
-              onChange={(e)=>
-                setForm({...form,id:e.target.value})
+              onChange={(e) =>
+                setForm({ ...form, id: e.target.value })
               }
               className="border rounded-xl p-3"
             />
@@ -208,8 +209,8 @@ export default function StudentsPage() {
             <input
               placeholder="Student Name"
               value={form.name}
-              onChange={(e)=>
-                setForm({...form,name:e.target.value})
+              onChange={(e) =>
+                setForm({ ...form, name: e.target.value })
               }
               className="border rounded-xl p-3"
             />
@@ -217,8 +218,8 @@ export default function StudentsPage() {
             <input
               placeholder="Roll No"
               value={form.rollNo}
-              onChange={(e)=>
-                setForm({...form,rollNo:e.target.value})
+              onChange={(e) =>
+                setForm({ ...form, rollNo: e.target.value })
               }
               className="border rounded-xl p-3"
             />
@@ -226,8 +227,8 @@ export default function StudentsPage() {
             <input
               placeholder="PRN"
               value={form.prn}
-              onChange={(e)=>
-                setForm({...form,prn:e.target.value})
+              onChange={(e) =>
+                setForm({ ...form, prn: e.target.value })
               }
               className="border rounded-xl p-3"
             />
@@ -235,8 +236,8 @@ export default function StudentsPage() {
             <input
               placeholder="Email"
               value={form.email}
-              onChange={(e)=>
-                setForm({...form,email:e.target.value})
+              onChange={(e) =>
+                setForm({ ...form, email: e.target.value })
               }
               className="border rounded-xl p-3"
             />
@@ -244,12 +245,12 @@ export default function StudentsPage() {
             <input
               placeholder="Phone"
               value={form.phone}
-              onChange={(e)=>
-                setForm({...form,phone:e.target.value})
+              onChange={(e) =>
+                setForm({ ...form, phone: e.target.value })
               }
               className="border rounded-xl p-3"
             />
-                        <input
+            <input
               placeholder="Department"
               value={form.department}
               onChange={(e) =>
@@ -378,6 +379,15 @@ export default function StudentsPage() {
                     <td className="p-4">
 
                       <div className="flex justify-center gap-3">
+
+                        <button
+                          onClick={() =>
+                            router.push(`/admin/students/${student.id}`)
+                          }
+                          className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-2 rounded-lg text-sm font-medium"
+                        >
+                          View
+                        </button>
 
                         <button
                           onClick={() => handleEdit(student)}

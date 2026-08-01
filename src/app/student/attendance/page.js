@@ -18,152 +18,170 @@ import PageHeader from "@/components/PageHeader";
 import { useStudent } from "@/context/StudentContext";
 
 export default function StudentAttendance() {
- const { student } = useStudent();
+  const { student } = useStudent();
 
-const [attendance, setAttendance] = useState({
-  percentage: 0,
-  present: 0,
-  absent: 0,
-  leave: 0,
-  total: 0,
-  status: "Poor",
-});
+  const [attendance, setAttendance] = useState({
+    percentage: 0,
+    present: 0,
+    absent: 0,
+    leave: 0,
+    total: 0,
+    status: "Poor",
+  });
 
-const [subjects, setSubjects] = useState([]);
+  const [subjects, setSubjects] = useState([]);
+  const [todayAttendance, setTodayAttendance] = useState({
+    found: false,
+    subject: "",
+    status: "",
+    date: "",
+    time: "",
+  });
   const [loading, setLoading] = useState(true);
 
-useEffect(() => {
-  if (!student?.uid) {
-    setLoading(false);
-    return;
-  }
+  useEffect(() => {
+    if (!student?.uid) {
+      setLoading(false);
+      return;
+    }
 
-  async function loadAttendance() {
-    try {
-      setLoading(true);
+    async function loadAttendance() {
+      try {
+        setLoading(true);
 
-      let present = 0;
-      let absent = 0;
-      let leave = 0;
+        let present = 0;
+        let absent = 0;
+        let leave = 0;
+        const today = new Date().toISOString().split("T")[0];
+        const subjectMap = {};
 
-      const subjectMap = {};
-
-      // Read all attendance sessions
-      const sessionsSnapshot = await getDocs(
-        collection(db, "attendanceSessions")
-      );
-
-      for (const sessionDoc of sessionsSnapshot.docs) {
-        const session = sessionDoc.data();
-
-        // Read students inside this session
-        const studentsSnapshot = await getDocs(
-          collection(
-            db,
-            "attendanceSessions",
-            sessionDoc.id,
-            "students"
-          )
+        // Read all attendance sessions
+        const sessionsSnapshot = await getDocs(
+          collection(db, "attendanceSessions")
         );
 
-        studentsSnapshot.forEach((studentDoc) => {
-          const data = studentDoc.data();
+        for (const sessionDoc of sessionsSnapshot.docs) {
+          const session = sessionDoc.data();
+          if (session.date !== today) continue;
+          // Read students inside this session
+          const studentsSnapshot = await getDocs(
+            collection(
+              db,
+              "attendanceSessions",
+              sessionDoc.id,
+              "students"
+            )
+          );
 
-          // Skip other students
-          if (data.uid !== student.uid) return;
+          studentsSnapshot.forEach((studentDoc) => {
+            const data = studentDoc.data();
 
-          // Count overall attendance
-          if (data.status === "Present") {
-            present++;
-          } else if (data.status === "Absent") {
-            absent++;
-          } else {
-            leave++;
-          }
+            // Skip other students
+            if (data.uid !== student.uid) return;
+            setTodayAttendance({
+  found: true,
+  subject: session.subject || "Unknown",
+  status: data.status,
+  date: session.date,
+  time: data.markedAt
+    ? data.markedAt.toDate().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "",
+}); 
+            // Count overall attendance
+            if (data.status === "Present") {
+              present++;
+            } else if (data.status === "Absent") {
+              absent++;
+            } else {
+              leave++;
+            }
 
-          const subject = session.subject || "Unknown";
+            const subject = session.subject || "Unknown";
 
-          // Subject wise
-          if (!subjectMap[subject]) {
-            subjectMap[subject] = {
-              id: subject,
-              subject,
-              present: 0,
-              total: 0,
-            };
-          }
+            // Subject wise
+            if (!subjectMap[subject]) {
+              subjectMap[subject] = {
+                id: subject,
+                subject,
+                present: 0,
+                total: 0,
+              };
+            }
 
-          subjectMap[subject].total++;
+            subjectMap[subject].total++;
 
-          if (data.status === "Present") {
-            subjectMap[subject].present++;
-          }
-        });
-      }
+            if (data.status === "Present") {
+              subjectMap[subject].present++;
+            }
+          });
+        }
 
-      const total = present + absent + leave;
+        const total = present + absent + leave;
 
-      const percentage =
-        total === 0
-          ? 0
-          : Math.round((present / total) * 100);
-
-      const subjectList = Object.values(subjectMap).map((item) => {
-
-        const percent =
-          item.total === 0
+        const percentage =
+          total === 0
             ? 0
-            : Math.round(
+            : Math.round((present / total) * 100);
+
+        const subjectList = Object.values(subjectMap).map((item) => {
+
+          const percent =
+            item.total === 0
+              ? 0
+              : Math.round(
                 (item.present / item.total) * 100
               );
 
-        return {
-          ...item,
-          percentage: percent,
+          return {
+            ...item,
+            percentage: percent,
+            status:
+              percent >= 90
+                ? "Excellent"
+                : percent >= 75
+                  ? "Good"
+                  : "Poor",
+          };
+        });
+
+        setAttendance({
+          percentage,
+          present,
+          absent,
+          leave,
+          total,
           status:
-            percent >= 90
+            percentage >= 90
               ? "Excellent"
-              : percent >= 75
-              ? "Good"
-              : "Poor",
-        };
-      });
+              : percentage >= 75
+                ? "Good"
+                : "Poor",
+        });
 
-      setAttendance({
-        percentage,
-        present,
-        absent,
-        leave,
-        total,
-        status:
-          percentage >= 90
-            ? "Excellent"
-            : percentage >= 75
-            ? "Good"
-            : "Poor",
-      });
+        setSubjects(subjectList);
 
-      setSubjects(subjectList);
-
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoading(false);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
     }
-  }
 
-  loadAttendance();
-}, [student]);
+    loadAttendance();
+  }, [student]);
 
 
   if (loading) {
     return (
-  <div className="space-y-8">
+      <div className="space-y-8">
         <div className="animate-pulse space-y-6">
           <div className="h-10 bg-gray-300 rounded w-64"></div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-            {[1,2,3,4].map((i)=>(
+            {[1, 2, 3, 4].map((i) => (
               <div
                 key={i}
                 className="bg-white h-40 rounded-2xl shadow"
@@ -193,22 +211,86 @@ useEffect(() => {
     );
   }
 
- return (
-  <div className="space-y-8">
+  return (
+    <div className="space-y-8">
 
-    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
 
-  <PageHeader
-    title="Attendance"
-    subtitle="Monitor your attendance performance"
-  />
+        <PageHeader
+          title="Attendance"
+          subtitle="Monitor your attendance performance"
+        />
 
-  <a
-    href="/student/attendance-history"
-    className="inline-flex items-center justify-center px-5 py-3 rounded-xl bg-slate-900 text-white hover:bg-slate-800 transition font-medium"
-  >
-    View Full History →
-  </a>
+        <a
+          href="/student/attendance-history"
+          className="inline-flex items-center justify-center px-5 py-3 rounded-xl bg-slate-900 text-white hover:bg-slate-800 transition font-medium"
+        >
+          View Full History →
+        </a>
+
+      </div>
+      <div className="bg-white rounded-2xl shadow-lg p-6">
+
+  <h2 className="text-xl font-semibold mb-4">
+    Today's Attendance
+  </h2>
+
+  {todayAttendance.found ? (
+
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+
+      <div>
+        <p className="text-gray-500 text-sm">Date</p>
+        <p className="font-semibold mt-1">
+          {todayAttendance.date}
+        </p>
+      </div>
+
+      <div>
+        <p className="text-gray-500 text-sm">Subject</p>
+        <p className="font-semibold mt-1">
+          {todayAttendance.subject}
+        </p>
+      </div>
+
+      <div>
+        <p className="text-gray-500 text-sm">Status</p>
+
+        <span
+          className={`inline-block mt-1 px-3 py-1 rounded-full text-sm font-semibold ${
+            todayAttendance.status === "Present"
+              ? "bg-green-100 text-green-700"
+              : todayAttendance.status === "Absent"
+              ? "bg-red-100 text-red-700"
+              : "bg-yellow-100 text-yellow-700"
+          }`}
+        >
+          {todayAttendance.status}
+        </span>
+      </div>
+
+      <div>
+        <p className="text-gray-500 text-sm">Marked At</p>
+        <p className="font-semibold mt-1">
+          {todayAttendance.time || "--"}
+        </p>
+      </div>
+
+    </div>
+
+  ) : (
+
+    <div className="text-center py-8">
+      <p className="text-lg font-semibold text-gray-700">
+        Attendance Not Marked Yet
+      </p>
+
+      <p className="text-gray-500 mt-2">
+        Your attendance has not been recorded for today.
+      </p>
+    </div>
+
+  )}
 
 </div>
 
@@ -405,7 +487,7 @@ useEffect(() => {
 
             <tbody>
 
-              {subjects.map((subject)=>(
+              {subjects.map((subject) => (
 
                 <tr
                   key={subject.id}
@@ -431,11 +513,10 @@ useEffect(() => {
                   <td className="text-center">
 
                     <span
-                      className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                        subject.status === "Excellent"
+                      className={`px-3 py-1 rounded-full text-sm font-semibold ${subject.status === "Excellent"
                           ? "bg-green-100 text-green-700"
                           : "bg-yellow-100 text-yellow-700"
-                      }`}
+                        }`}
                     >
                       {subject.status}
                     </span>
