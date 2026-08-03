@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import toast from "react-hot-toast";
 import { markAttendance } from "@/lib/attendanceService";
 
 export default function NFCReaderPage() {
@@ -97,7 +98,7 @@ export default function NFCReaderPage() {
   if (!running) return;
 
   try {
-    const result = await markAttendance("student001");
+    const result = await markAttendance("CE6LFM90xugMdhwrIbC34ANHWeA2");
 
     setLastStudent({
       name: result.student,

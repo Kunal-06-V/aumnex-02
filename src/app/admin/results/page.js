@@ -35,6 +35,7 @@ const emptyForm = {
 export default function ResultsPage() {
 
   const [results, setResults] = useState([]);
+  const [students, setStudents] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -45,9 +46,10 @@ export default function ResultsPage() {
 
   const [form, setForm] = useState(emptyForm);
 
-  useEffect(() => {
+ useEffect(() => {
+    fetchStudents();
     fetchResults();
-  }, []);
+}, []);
 
   useEffect(() => {
 
@@ -62,7 +64,34 @@ export default function ResultsPage() {
     );
 
   }, [search, results]);
+async function fetchStudents() {
 
+  try {
+
+    const snapshot = await getDocs(
+      collection(db, "students")
+    );
+
+    const data = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    data.sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
+
+    setStudents(data);
+
+  } catch (err) {
+
+    console.error(err);
+
+    toast.error("Failed to load students.");
+
+  }
+
+}
   async function fetchResults() {
 
     setLoading(true);
