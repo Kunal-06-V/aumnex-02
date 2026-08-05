@@ -26,16 +26,19 @@ const emptyForm = {
   id: "",
   studentName: "",
   rollNo: "",
-  semester: "Semester 4",
+  department: "",
+  semester: "",
   totalFees: "",
   paidFees: "",
   pendingFees: "",
+  dueDate: "",
   status: "Pending",
 };
 
 export default function FeesPage() {
 
   const [fees, setFees] = useState([]);
+  const [students, setStudents] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -47,9 +50,9 @@ export default function FeesPage() {
   const [form, setForm] = useState(emptyForm);
 
   useEffect(() => {
+    fetchStudents();
     fetchFees();
   }, []);
-
   useEffect(() => {
 
     const text = search.toLowerCase();
@@ -89,11 +92,61 @@ export default function FeesPage() {
     setLoading(false);
 
   }
+  async function fetchStudents() {
+
+    try {
+
+      const snapshot = await getDocs(
+        collection(db, "students")
+      );
+
+      const data = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
+      data.sort((a, b) => a.name.localeCompare(b.name));
+
+      setStudents(data);
+
+    } catch (err) {
+
+      console.error(err);
+      toast.error("Failed to load students.");
+
+    }
+
+  }
 
   function resetForm() {
     setEditing(false);
     setShowForm(false);
     setForm(emptyForm);
+  }
+  function selectStudent(studentId) {
+
+    const student = students.find(
+      (item) => item.id === studentId
+    );
+
+    if (!student) return;
+
+    setForm((prev) => ({
+
+      ...prev,
+
+      id: student.id,
+
+      studentName: student.name,
+
+      rollNo: student.rollNo,
+
+      department: student.department || "",
+
+      semester: student.semester || "",
+
+    }));
+
   }
 
   async function handleSave() {
@@ -104,39 +157,55 @@ export default function FeesPage() {
     }
 
     try {
-        const total = Number(form.totalFees);
-const paid = Number(form.paidFees);
+      const total = Number(form.totalFees);
+      const paid = Number(form.paidFees);
+      if (paid > total) {
+        toast.error("Paid fees cannot exceed total fees.");
+        return;
+      }
 
-const pending = total - paid;
+      const pending = total - paid;
 
-const percentagePaid =
-  total > 0 ? Math.round((paid / total) * 100) : 0;
+      const percentagePaid =
+        total > 0 ? Math.round((paid / total) * 100) : 0;
 
       if (editing) {
 
-     await updateDoc(doc(db, "fees", form.id), {
-  studentName: form.studentName,
-  rollNo: form.rollNo,
-  semester: form.semester,
-  totalFees: form.totalFees,
-  paidFees: form.paidFees,
-  pendingFees: pending.toString(),
-  percentagePaid,
-  status: form.status,
-});
+        await updateDoc(doc(db, "fees", form.id), {
+          studentName: form.studentName,
+          rollNo: form.rollNo,
+          department: form.department,
+          semester: form.semester,
+          totalFees: total,
+          paidFees: paid,
+          pendingFees: pending,
+          percentagePaid,
+          status:
+            pending === 0
+              ? "Paid"
+              : paid === 0
+                ? "Pending"
+                : "Partial",
+        });
 
         toast.success("Fees updated successfully.");
 
       } else {
 
-       await setDoc(
-  doc(db, "fees", form.id),
-  {
-    ...form,
-    pendingFees: pending.toString(),
-    percentagePaid,
-  }
-);
+        await setDoc(
+          doc(db, "fees", form.id),
+          {
+            ...form,
+            pendingFees: pending,
+            status:
+              pending === 0
+                ? "Paid"
+                : paid === 0
+                  ? "Pending"
+                  : "Partial",
+            percentagePaid,
+          }
+        );
 
         toast.success("Fees record added successfully.");
 
@@ -182,10 +251,12 @@ const percentagePaid =
       id: item.id,
       studentName: item.studentName || "",
       rollNo: item.rollNo || "",
-      semester: item.semester || "Semester 4",
+      department: item.department || "",
+      semester: item.semester || "",
       totalFees: item.totalFees || "",
       paidFees: item.paidFees || "",
       pendingFees: item.pendingFees || "",
+      dueDate: item.dueDate || "",
       status: item.status || "Pending",
     });
 
@@ -241,39 +312,44 @@ const percentagePaid =
 
           <div className="grid md:grid-cols-2 gap-4">
 
-            <input
-              placeholder="Student ID"
+            <select
               disabled={editing}
               value={form.id}
-              onChange={(e) =>
-                setForm({ ...form, id: e.target.value })
-              }
+              onChange={(e) => selectStudent(e.target.value)}
               className="border rounded-xl p-3"
-            />
+            >
+              <option value="">Select Student</option>
 
+              {students.map((student) => (
+                <option
+                  key={student.id}
+                  value={student.id}
+                >
+                  {student.name} ({student.rollNo})
+                </option>
+              ))}
+
+            </select>
             <input
-              placeholder="Student Name"
               value={form.studentName}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  studentName: e.target.value,
-                })
-              }
-              className="border rounded-xl p-3"/>
+              readOnly
+              placeholder="Student Name"
+              className="border rounded-xl p-3 bg-gray-100"
+            />
 
             <input
-              placeholder="Roll No"
               value={form.rollNo}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  rollNo: e.target.value,
-                })
-              }
-              className="border rounded-xl p-3"
+              readOnly
+              placeholder="Roll No"
+              className="border rounded-xl p-3 bg-gray-100"
             />
-                        <input
+            <input
+              value={form.department}
+              readOnly
+              placeholder="Department"
+              className="border rounded-xl p-3 bg-gray-100"
+            />
+            <input
               placeholder="Total Fees"
               value={form.totalFees}
               onChange={(e) =>
@@ -292,42 +368,38 @@ const percentagePaid =
             />
 
             <input
-              placeholder="Pending Fees"
-              value={form.pendingFees}
-              onChange={(e) =>
-                setForm({ ...form, pendingFees: e.target.value })
+              value={
+                Math.max(
+                  Number(form.totalFees || 0) -
+                  Number(form.paidFees || 0),
+                  0
+                )
               }
-              className="border rounded-xl p-3"
+              readOnly
+              placeholder="Pending Fees"
+              className="border rounded-xl p-3 bg-gray-100"
             />
 
-            <select
+            <input
               value={form.semester}
-              onChange={(e) =>
-                setForm({ ...form, semester: e.target.value })
-              }
-              className="border rounded-xl p-3"
-            >
-              <option>Semester 1</option>
-              <option>Semester 2</option>
-              <option>Semester 3</option>
-              <option>Semester 4</option>
-              <option>Semester 5</option>
-              <option>Semester 6</option>
-              <option>Semester 7</option>
-              <option>Semester 8</option>
-            </select>
+              readOnly
+              placeholder="Semester"
+              className="border rounded-xl p-3 bg-gray-100"
+            />
 
-            <select
-              value={form.status}
-              onChange={(e) =>
-                setForm({ ...form, status: e.target.value })
+            <input
+              readOnly
+              value={
+                Number(form.totalFees || 0) === 0
+                  ? "Pending"
+                  : Number(form.totalFees) -
+                    Number(form.paidFees) ===
+                    0
+                    ? "Paid"
+                    : "Partial"
               }
-              className="border rounded-xl p-3 md:col-span-2"
-            >
-              <option>Paid</option>
-              <option>Partial</option>
-              <option>Pending</option>
-            </select>
+              className="border rounded-xl p-3 bg-gray-100 md:col-span-2"
+            />
 
           </div>
 
@@ -448,13 +520,12 @@ const percentagePaid =
                     <td className="p-4">
 
                       <span
-                        className={`px-3 py-1 rounded-full text-sm ${
-                          item.status === "Paid"
-                            ? "bg-green-100 text-green-700"
-                            : item.status === "Partial"
+                        className={`px-3 py-1 rounded-full text-sm ${item.status === "Paid"
+                          ? "bg-green-100 text-green-700"
+                          : item.status === "Partial"
                             ? "bg-yellow-100 text-yellow-700"
                             : "bg-red-100 text-red-700"
-                        }`}
+                          }`}
                       >
                         {item.status}
                       </span>

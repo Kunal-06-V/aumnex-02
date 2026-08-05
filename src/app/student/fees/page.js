@@ -33,6 +33,7 @@ export default function StudentFees() {
       setLoading(true);
 
       const feeRef = doc(db, "fees", "student001");
+      
       const feeSnap = await getDoc(feeRef);
 
       if (!feeSnap.exists()) {
@@ -282,11 +283,14 @@ setFeeData(data);
     </span>
 
     <span
-      className={`px-4 py-2 rounded-full text-sm font-semibold ${
-        feeData.status === "Paid"
-          ? "bg-green-100 text-green-700"
-          : "bg-yellow-100 text-yellow-700"
-      }`}
+     className={`px-4 py-2 rounded-full text-sm font-semibold
+${
+feeData.status==="Paid"
+?"bg-green-100 text-green-700"
+:feeData.status==="Partial"
+?"bg-yellow-100 text-yellow-700"
+:"bg-red-100 text-red-700"
+}`}
     >
       {feeData.status}
     </span>

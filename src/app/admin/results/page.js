@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
 import {
   collection,
   getDocs,
@@ -19,24 +20,32 @@ import {
   Trash2,
   X,
   GraduationCap,
+  Users,
+  CheckCircle,
+  XCircle,
+  AlertTriangle,
 } from "lucide-react";
+
 import toast from "react-hot-toast";
 
 const emptyForm = {
   id: "",
   studentName: "",
   rollNo: "",
-  semester: "Semester 4",
+  department: "",
+  semester: "",
   sgpa: "",
   cgpa: "",
-  status: "PASS",
+  failedSubjects: 0,
+  status: "",
 };
 
 export default function ResultsPage() {
 
   const [results, setResults] = useState([]);
-  const [students, setStudents] = useState([]);
   const [filtered, setFiltered] = useState([]);
+  const [students, setStudents] = useState([]);
+
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState("");
@@ -46,10 +55,10 @@ export default function ResultsPage() {
 
   const [form, setForm] = useState(emptyForm);
 
- useEffect(() => {
+  useEffect(() => {
     fetchStudents();
     fetchResults();
-}, []);
+  }, []);
 
   useEffect(() => {
 
@@ -64,34 +73,35 @@ export default function ResultsPage() {
     );
 
   }, [search, results]);
-async function fetchStudents() {
 
-  try {
+  async function fetchStudents() {
 
-    const snapshot = await getDocs(
-      collection(db, "students")
-    );
+    try {
 
-    const data = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+      const snapshot = await getDocs(
+        collection(db, "students")
+      );
 
-    data.sort((a, b) =>
-      a.name.localeCompare(b.name)
-    );
+      const data = snapshot.docs.map((student) => ({
+        id: student.id,
+        ...student.data(),
+      }));
 
-    setStudents(data);
+      data.sort((a, b) =>
+        a.name.localeCompare(b.name)
+      );
 
-  } catch (err) {
+      setStudents(data);
 
-    console.error(err);
+    } catch (err) {
 
-    toast.error("Failed to load students.");
+      console.error(err);
+      toast.error("Failed to load students.");
+
+    }
 
   }
 
-}
   async function fetchResults() {
 
     setLoading(true);
@@ -102,190 +112,485 @@ async function fetchStudents() {
         collection(db, "results")
       );
 
-      const data = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
+      const data = snapshot.docs.map((item) => ({
+        id: item.id,
+        ...item.data(),
       }));
 
       setResults(data);
       setFiltered(data);
 
     } catch (err) {
+
       console.error(err);
+      toast.error("Failed to load results.");
+
     }
 
     setLoading(false);
+
   }
 
+  const stats = useMemo(() => {
+
+    return {
+
+      total: results.length,
+
+      pass: results.filter(
+        (r) => r.status === "PASS"
+      ).length,
+
+      fail: results.filter(
+        (r) => r.status === "FAIL"
+      ).length,
+
+      atkt: results.filter(
+        (r) => r.status === "ATKT"
+      ).length,
+
+    };
+
+  }, [results]);
   function resetForm() {
-    setEditing(false);
-    setShowForm(false);
-    setForm(emptyForm);
+
+  setEditing(false);
+  setShowForm(false);
+  setForm(emptyForm);
+
+}
+
+function selectStudent(studentId) {
+
+  const student = students.find(
+    (item) => item.id === studentId
+  );
+
+  if (!student) return;
+
+ setForm({
+
+  ...form,
+
+  id: student.id,
+
+  studentName: student.name,
+
+  rollNo: student.rollNo,
+
+  department:
+    student.department || "",
+
+  semester:
+    student.semester || "",
+
+  failedSubjects: 0,
+
+  status: "",
+
+});
+
+}
+
+async function handleSave() {
+
+  if (!form.id) {
+    toast.error("Select a student.");
+    return;
   }
 
-  async function handleSave() {
+  // Calculate status automatically
+  let status = "PASS";
 
-    if (!form.id || !form.studentName) {
-      toast.error("Student ID and Name are required.");
-      return;
+  if (Number(form.failedSubjects) >= 3) {
+    status = "FAIL";
+  } else if (Number(form.failedSubjects) > 0) {
+    status = "ATKT";
+  }
+
+  try {
+
+    const data = {
+
+      studentName: form.studentName,
+
+      rollNo: form.rollNo,
+
+      department: form.department,
+
+      semester: form.semester,
+
+      sgpa: Number(form.sgpa),
+
+      cgpa: Number(form.cgpa),
+
+      failedSubjects: Number(form.failedSubjects),
+
+      status,
+
+    };
+
+    if (editing) {
+
+      await updateDoc(
+        doc(db, "results", form.id),
+        data
+      );
+
+      toast.success("Result updated successfully.");
+
+    } else {
+
+      await setDoc(
+        doc(db, "results", form.id),
+        data
+      );
+
+      toast.success("Result added successfully.");
+
     }
 
-    try {
+    resetForm();
+    fetchResults();
 
-      if (editing) {
+  } catch (err) {
 
-        await updateDoc(doc(db, "results", form.id), {
-          studentName: form.studentName,
-          rollNo: form.rollNo,
-          semester: form.semester,
-          sgpa: form.sgpa,
-          cgpa: form.cgpa,
-          status: form.status,
-        });
+    console.error(err);
 
-       toast.success("Result updated successfully.");
-
-      } else {
-
-        await setDoc(
-          doc(db, "results", form.id),
-          form
-        );
-
-        toast.success("Result added successfully.");
-
-      }
-
-      resetForm();
-      fetchResults();
-
-    } catch (err) {
-
-      console.error(err);
-      toast.error("Failed to save result.");
-
-    }
+    toast.error("Failed to save result.");
 
   }
 
-  async function handleDelete(id) {
+}
 
-    if (!confirm("Delete this result?")) return;
+async function handleDelete(id) {
 
-    try {
+  if (
+    !confirm(
+      "Delete this result?"
+    )
+  ) {
+    return;
+  }
 
-      await deleteDoc(doc(db, "results", id));
+  try {
 
-      fetchResults();
+    await deleteDoc(
+      doc(db, "results", id)
+    );
 
-    } catch (err) {
+    toast.success(
+      "Result deleted."
+    );
 
-      console.error(err);
-     toast.error("Failed to delete result.");
-
-    }
+    fetchResults();
 
   }
 
-  function handleEdit(item) {
+  catch (err) {
 
-    setEditing(true);
-    setShowForm(true);
+    console.error(err);
 
-    setForm({
-      id: item.id,
-      studentName: item.studentName || "",
-      rollNo: item.rollNo || "",
-      semester: item.semester || "Semester 4",
-      sgpa: item.sgpa || "",
-      cgpa: item.cgpa || "",
-      status: item.status || "PASS",
-    });
+    toast.error(
+      "Delete failed."
+    );
 
   }
 
-  return (
+}
 
-    <div className="space-y-6">
+function handleEdit(item) {
 
-      <div className="flex justify-between items-center">
+  setEditing(true);
 
-        <div>
+  setShowForm(true);
 
-          <h1 className="text-3xl font-bold">
-            Manage Results
-          </h1>
+ setForm({
+  id: item.id,
+  studentName: item.studentName,
+  rollNo: item.rollNo,
+  department: item.department || "",
+  semester: item.semester || "",
+  sgpa: item.sgpa || "",
+  cgpa: item.cgpa || "",
+  failedSubjects: item.failedSubjects ?? 0,
+});
 
-          <p className="text-gray-500">
-            Add, edit and manage student results
-          </p>
+}
+return (
 
-        </div>
+  <div className="space-y-8">
 
-        <button
-          onClick={()=>{
-            setEditing(false);
-            setForm(emptyForm);
-            setShowForm(true);
-          }}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl flex items-center gap-2"
-        >
-          <Plus size={18}/>
-          Add Result
-        </button>
+    {/* Header */}
+
+    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+
+      <div>
+
+        <h1 className="text-3xl font-bold">
+          Manage Results
+        </h1>
+
+        <p className="text-gray-500 mt-2">
+          Add, update and manage student academic results
+        </p>
 
       </div>
 
-      {showForm && (
+      <button
+        onClick={() => {
 
-        <div className="bg-white rounded-2xl shadow-md p-6">
+          setEditing(false);
 
-          <div className="flex justify-between mb-6">
+          setForm(emptyForm);
 
-            <h2 className="text-2xl font-bold">
-              {editing ? "Edit Result" : "Add Result"}
+          setShowForm(true);
+
+        }}
+        className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl flex items-center gap-2"
+      >
+
+        <Plus size={18} />
+
+        Add Result
+
+      </button>
+
+    </div>
+
+    {/* Statistics */}
+
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+
+      <div className="bg-white rounded-2xl shadow-md p-6">
+
+        <div className="flex justify-between items-center">
+
+          <div>
+
+            <p className="text-gray-500">
+              Total Results
+            </p>
+
+            <h2 className="text-3xl font-bold mt-3">
+              {stats.total}
             </h2>
 
-            <button onClick={resetForm}>
-              <X/>
+          </div>
+
+          <div className="bg-blue-100 p-4 rounded-xl">
+
+            <Users
+              size={30}
+              className="text-blue-600"
+            />
+
+          </div>
+
+        </div>
+
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-md p-6">
+
+        <div className="flex justify-between items-center">
+
+          <div>
+
+            <p className="text-gray-500">
+              Pass
+            </p>
+
+            <h2 className="text-3xl font-bold mt-3 text-green-600">
+              {stats.pass}
+            </h2>
+
+          </div>
+
+          <div className="bg-green-100 p-4 rounded-xl">
+
+            <CheckCircle
+              size={30}
+              className="text-green-600"
+            />
+
+          </div>
+
+        </div>
+
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-md p-6">
+
+        <div className="flex justify-between items-center">
+
+          <div>
+
+            <p className="text-gray-500">
+              Fail
+            </p>
+
+            <h2 className="text-3xl font-bold mt-3 text-red-600">
+              {stats.fail}
+            </h2>
+
+          </div>
+
+          <div className="bg-red-100 p-4 rounded-xl">
+
+            <XCircle
+              size={30}
+              className="text-red-600"
+            />
+
+          </div>
+
+        </div>
+
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-md p-6">
+
+        <div className="flex justify-between items-center">
+
+          <div>
+
+            <p className="text-gray-500">
+              ATKT
+            </p>
+
+            <h2 className="text-3xl font-bold mt-3 text-yellow-600">
+              {stats.atkt}
+            </h2>
+
+          </div>
+
+          <div className="bg-yellow-100 p-4 rounded-xl">
+
+            <AlertTriangle
+              size={30}
+              className="text-yellow-600"
+            />
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+    {/* Search */}
+
+    <div className="bg-white rounded-2xl shadow-md p-6">
+
+      <div className="relative">
+
+        <Search
+          size={18}
+          className="absolute left-3 top-3 text-gray-400"
+        />
+
+        <input
+          type="text"
+          placeholder="Search by Student Name or Roll No"
+          value={search}
+          onChange={(e) =>
+            setSearch(e.target.value)
+          }
+          className="w-full border rounded-xl pl-10 pr-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none"
+        />
+
+      </div>
+            {showForm && (
+
+        <div className="mt-8 border-t pt-8">
+
+          <div className="flex justify-between items-center mb-6">
+
+            <h2 className="text-2xl font-bold">
+
+              {editing ? "Edit Result" : "Add Result"}
+
+            </h2>
+
+            <button
+              onClick={resetForm}
+              className="text-gray-500 hover:text-red-500"
+            >
+              <X size={22} />
             </button>
 
           </div>
 
           <div className="grid md:grid-cols-2 gap-4">
 
-            <input
-              placeholder="Student ID"
+            {/* Student */}
+
+            <select
               disabled={editing}
               value={form.id}
-              onChange={(e)=>
-                setForm({...form,id:e.target.value})
+              onChange={(e) =>
+                selectStudent(e.target.value)
               }
               className="border rounded-xl p-3"
-            />
+            >
+
+              <option value="">
+                Select Student
+              </option>
+
+              {students.map((student) => (
+
+                <option
+                  key={student.id}
+                  value={student.id}
+                >
+
+                  {student.name} ({student.rollNo})
+
+                </option>
+
+              ))}
+
+            </select>
 
             <input
-              placeholder="Student Name"
               value={form.studentName}
-              onChange={(e)=>
-                setForm({...form,studentName:e.target.value})
-              }
-              className="border rounded-xl p-3"
+              readOnly
+              placeholder="Student Name"
+              className="border rounded-xl p-3 bg-gray-100"
             />
 
             <input
-              placeholder="Roll No"
               value={form.rollNo}
-              onChange={(e)=>
-                setForm({...form,rollNo:e.target.value})
-              }
-              className="border rounded-xl p-3"
+              readOnly
+              placeholder="Roll Number"
+              className="border rounded-xl p-3 bg-gray-100"
             />
-                        <input
+
+            <input
+              value={form.department}
+              readOnly
+              placeholder="Department"
+              className="border rounded-xl p-3 bg-gray-100"
+            />
+
+            <input
+              value={form.semester}
+              readOnly
+              placeholder="Semester"
+              className="border rounded-xl p-3 bg-gray-100"
+            />
+
+            <input
               placeholder="SGPA"
               value={form.sgpa}
               onChange={(e) =>
-                setForm({ ...form, sgpa: e.target.value })
+                setForm({
+                  ...form,
+                  sgpa: e.target.value,
+                })
               }
               className="border rounded-xl p-3"
             />
@@ -294,56 +599,50 @@ async function fetchStudents() {
               placeholder="CGPA"
               value={form.cgpa}
               onChange={(e) =>
-                setForm({ ...form, cgpa: e.target.value })
+                setForm({
+                  ...form,
+                  cgpa: e.target.value,
+                })
               }
               className="border rounded-xl p-3"
             />
 
-            <select
-              value={form.semester}
-              onChange={(e) =>
-                setForm({ ...form, semester: e.target.value })
-              }
-              className="border rounded-xl p-3"
-            >
-              <option>Semester 1</option>
-              <option>Semester 2</option>
-              <option>Semester 3</option>
-              <option>Semester 4</option>
-              <option>Semester 5</option>
-              <option>Semester 6</option>
-              <option>Semester 7</option>
-              <option>Semester 8</option>
-            </select>
-
-            <select
-              value={form.status}
-              onChange={(e) =>
-                setForm({ ...form, status: e.target.value })
-              }
-              className="border rounded-xl p-3"
-            >
-              <option>PASS</option>
-              <option>FAIL</option>
-              <option>ATKT</option>
-            </select>
+            <input
+  type="number"
+  min="0"
+  placeholder="Failed Subjects"
+  value={form.failedSubjects || 0}
+  onChange={(e) =>
+    setForm({
+      ...form,
+      failedSubjects: Number(e.target.value),
+    })
+  }
+  className="border rounded-xl p-3"
+/>
 
           </div>
 
-          <div className="mt-6 flex gap-3">
+          <div className="flex gap-3 mt-8">
 
             <button
               onClick={handleSave}
               className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl"
             >
-              {editing ? "Update Result" : "Save Result"}
+
+              {editing
+                ? "Update Result"
+                : "Save Result"}
+
             </button>
 
             <button
               onClick={resetForm}
               className="bg-gray-300 hover:bg-gray-400 px-6 py-3 rounded-xl"
             >
+
               Cancel
+
             </button>
 
           </div>
@@ -352,147 +651,186 @@ async function fetchStudents() {
 
       )}
 
-      <div className="bg-white rounded-2xl shadow-md p-5">
+    </div>
+        {/* Results Table */}
 
-        <div className="relative mb-6">
+    <div className="bg-white rounded-2xl shadow-md p-6">
 
-          <Search
-            size={18}
-            className="absolute left-3 top-3 text-gray-400"
-          />
+      <h2 className="text-2xl font-bold mb-6">
 
-          <input
-            type="text"
-            placeholder="Search by Student Name or Roll No"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full border rounded-xl pl-10 pr-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
-          />
+        Student Results
+
+      </h2>
+
+      {loading ? (
+
+        <div className="py-16 text-center text-gray-500">
+
+          Loading Results...
 
         </div>
 
-        {loading ? (
+      ) : filtered.length === 0 ? (
 
-          <p className="text-center py-10">
-            Loading Results...
-          </p>
+        <div className="py-16 text-center text-gray-500">
 
-        ) : filtered.length === 0 ? (
+          No Results Found
 
-          <div className="text-center py-10">
+        </div>
 
-            <GraduationCap
-              size={48}
-              className="mx-auto text-gray-400 mb-4"
-            />
+      ) : (
 
-            <p>No Results Found.</p>
+        <div className="overflow-x-auto">
 
-          </div>
+          <table className="w-full">
 
-        ) : (
+            <thead>
 
-          <div className="overflow-x-auto">
+              <tr className="border-b">
 
-            <table className="w-full">
+                <th className="text-left py-4">
+                  Name
+                </th>
 
-              <thead className="bg-gray-100">
+                <th className="text-left py-4">
+                  Roll No
+                </th>
 
-                <tr>
-                  <th className="text-left p-4">Student</th>
-                  <th className="text-left p-4">Roll No</th>
-                  <th className="text-left p-4">Semester</th>
-                  <th className="text-left p-4">SGPA</th>
-                  <th className="text-left p-4">CGPA</th>
-                  <th className="text-left p-4">Status</th>
-                  <th className="text-center p-4">Actions</th>
+                <th className="text-left py-4">
+                  Department
+                </th>
+
+                <th className="text-left py-4">
+                  Semester
+                </th>
+
+                <th className="text-left py-4">
+                  SGPA
+                </th>
+
+                <th className="text-left py-4">
+                  CGPA
+                </th>
+
+                <th className="text-left py-4">
+                  Status
+                </th>
+
+                <th className="text-center py-4">
+                  Actions
+                </th>
+
+              </tr>
+
+            </thead>
+
+            <tbody>
+
+              {filtered.map((item) => (
+
+                <tr
+                  key={item.id}
+                  className="border-b hover:bg-gray-50"
+                >
+
+                  <td className="py-4">
+
+                    {item.studentName}
+
+                  </td>
+
+                  <td>
+
+                    {item.rollNo}
+
+                  </td>
+
+                  <td>
+
+                    {item.department}
+
+                  </td>
+
+                  <td>
+
+                    {item.semester}
+
+                  </td>
+
+                  <td>
+
+                    {item.sgpa}
+
+                  </td>
+
+                  <td>
+
+                    {item.cgpa}
+
+                  </td>
+
+                  <td>
+
+                    <span
+                      className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                        item.status === "PASS"
+                          ? "bg-green-100 text-green-700"
+                          : item.status === "FAIL"
+                          ? "bg-red-100 text-red-700"
+                          : "bg-yellow-100 text-yellow-700"
+                      }`}
+                    >
+
+                      {item.status}
+
+                    </span>
+
+                  </td>
+
+                  <td>
+
+                    <div className="flex justify-center gap-3">
+
+                      <button
+                        onClick={() =>
+                          handleEdit(item)
+                        }
+                        className="text-blue-600 hover:text-blue-800"
+                      >
+
+                        <Pencil size={18} />
+
+                      </button>
+
+                      <button
+                        onClick={() =>
+                          handleDelete(item.id)
+                        }
+                        className="text-red-600 hover:text-red-800"
+                      >
+
+                        <Trash2 size={18} />
+
+                      </button>
+
+                    </div>
+
+                  </td>
+
                 </tr>
 
-              </thead>
+              ))}
 
-              <tbody>
+            </tbody>
 
-                {filtered.map((item) => (
+          </table>
 
-                  <tr
-                    key={item.id}
-                    className="border-b hover:bg-gray-50"
-                  >
+        </div>
 
-                    <td className="p-4 font-medium">
-                      {item.studentName}
-                    </td>
-
-                    <td className="p-4">
-                      {item.rollNo}
-                    </td>
-
-                    <td className="p-4">
-                      {item.semester}
-                    </td>
-
-                    <td className="p-4">
-                      {item.sgpa}
-                    </td>
-
-                    <td className="p-4">
-                      {item.cgpa}
-                    </td>
-
-                    <td className="p-4">
-
-                      <span
-                        className={`px-3 py-1 rounded-full text-sm ${
-                          item.status === "PASS"
-                            ? "bg-green-100 text-green-700"
-                            : item.status === "FAIL"
-                            ? "bg-red-100 text-red-700"
-                            : "bg-yellow-100 text-yellow-700"
-                        }`}
-                      >
-                        {item.status}
-                      </span>
-
-                    </td>
-
-                    <td className="p-4">
-
-                      <div className="flex justify-center gap-3">
-
-                        <button
-                          onClick={() => handleEdit(item)}
-                          className="bg-yellow-100 hover:bg-yellow-200 text-yellow-700 p-2 rounded-lg"
-                        >
-                          <Pencil size={18} />
-                        </button>
-
-                        <button
-                          onClick={() => handleDelete(item.id)}
-                          className="bg-red-100 hover:bg-red-200 text-red-700 p-2 rounded-lg"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-
-                      </div>
-
-                    </td>
-
-                  </tr>
-
-                ))}
-
-              </tbody>
-
-            </table>
-
-          </div>
-
-        )}
-
-      </div>
+      )}
 
     </div>
+      </div>
 
-  );
-
+);
 }
