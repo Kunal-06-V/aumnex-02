@@ -1,0 +1,18 @@
+{
+  "SUB001": {
+    "name": "Data Structures",
+    "code": "DSA"
+  },
+  "SUB002": {
+    "name": "Database Management Systems",
+    "code": "DBMS"
+  },
+  "SUB003": {
+    "name": "Operating Systems",
+    "code": "OS"
+  },
+  "SUB004": {
+    "name": "Java Programming",
+    "code": "JAVA"
+  }
+}

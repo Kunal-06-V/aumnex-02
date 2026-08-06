@@ -58,15 +58,19 @@ async function seedCollection(collectionName) {
 async function main() {
   console.log("\n🚀 Starting Firestore Seeder...\n");
 
-  const collections = [
-    "students",
-    "results",
-    "fees",
-    "attendance",
-    "timetable",
-    "notifications",
-    "admin",
-  ];
+ const collections = [
+  "students",
+  "faculty",
+  "subjects",
+  "rooms",
+  "departments",
+  "results",
+  "fees",
+  "attendance",
+  "timetable",
+  "notifications",
+  "admin",
+];
 
   for (const collection of collections) {
     await seedCollection(collection);

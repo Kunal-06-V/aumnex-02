@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { doc, getDoc, collection, getDocs } from "firebase/firestore";
+import { auth } from "@/lib/firebase";
 import {
   CalendarDays,
   Clock,
@@ -26,8 +27,46 @@ export default function StudentTimetable() {
 
   async function fetchTimetable() {
     try {
-      const semRef = doc(db, "timetable", "semester4");
+      const user = auth.currentUser;
+
+      console.log("User:", user);
+
+      if (!user) {
+        console.log("No user logged in");
+        return;
+      }
+      const studentRef = doc(
+        db,
+        "students",
+        user.uid
+      );
+
+      const studentSnap = await getDoc(studentRef);
+
+      console.log("Student exists:", studentSnap.exists());
+
+      if (!studentSnap.exists()) {
+        console.log("Student document NOT found");
+        return;
+      }
+
+      const student = studentSnap.data();
+
+   const semesterId = student.semester
+  .toLowerCase()
+  .replace(/\s+/g, "");
+
+console.log("Semester:", student.semester);
+console.log("Semester ID:", semesterId);
+
+
+    const semRef = doc(
+  db,
+  "timetable",
+  semesterId
+);
       const semSnap = await getDoc(semRef);
+      console.log("Semester exists:", semSnap.exists());
 
       if (!semSnap.exists()) {
         setSemester(null);
@@ -37,12 +76,12 @@ export default function StudentTimetable() {
 
       setSemester(semSnap.data());
 
-      const daysRef = collection(
-        db,
-        "timetable",
-        "semester4",
-        "days"
-      );
+     const daysRef = collection(
+  db,
+  "timetable",
+  semesterId,
+  "days"
+);
 
       const snap = await getDocs(daysRef);
 
@@ -65,6 +104,8 @@ export default function StudentTimetable() {
       );
 
       setDays(data);
+    } catch (err) {
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -101,35 +142,28 @@ export default function StudentTimetable() {
   }
 
   if (!semester) {
-  return (
-    <div className="flex justify-center items-center min-h-[70vh]">
-      <div className="bg-white rounded-2xl shadow-xl p-10 text-center">
-        <h1 className="text-3xl font-bold">
-          Timetable Not Available
-        </h1>
+    return (
+      <div className="flex justify-center items-center min-h-[70vh]">
+        <div className="bg-white rounded-2xl shadow-xl p-10 text-center">
+          <h1 className="text-3xl font-bold">
+            Timetable Not Available
+          </h1>
 
-        <p className="text-gray-500 mt-3">
-          Timetable has not been uploaded yet.
-        </p>
+          <p className="text-gray-500 mt-3">
+            Timetable has not been uploaded yet.
+          </p>
+        </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
 
   return (
-      <div className="space-y-8">
-      <button
-  onClick={() => router.back()}
-  className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium"
->
-  <ArrowLeft size={18} />
-  Back
-</button>
+    <div className="space-y-8">
 
-<PageHeader
-  title="Class Timetable"
-  subtitle="Weekly lecture schedule"
-/>
+      <PageHeader
+        title="Class Timetable"
+        subtitle="Weekly lecture schedule"
+      />
 
       <div className="bg-white rounded-2xl shadow-lg p-6 mb-8 flex justify-between items-center">
 
@@ -176,7 +210,7 @@ export default function StudentTimetable() {
                 day.period4,
                 day.period5,
                 day.period6,
-              ].map((lecture, index) => (
+              ].map((lecture = {}, index) => (
 
                 <div
                   key={index}
@@ -190,34 +224,32 @@ export default function StudentTimetable() {
                     </h3>
 
                     <span
-                      className={`px-3 py-1 rounded-full text-xs font-semibold ${badge(
-                        lecture.type
-                      )}`}
+                      className={`px-3 py-1 rounded-full text-xs font-semibold ${badge(lecture.type || "Theory")}`}
                     >
-                      {lecture.type}
+                      {lecture.type || "Theory"}
                     </span>
 
                   </div>
 
                   <h4 className="text-xl font-bold mt-4">
-                    {lecture.subject}
+                    {lecture.subject || "-"}
                   </h4>
 
                   <div className="space-y-2 mt-5 text-sm text-gray-600">
 
                     <div className="flex items-center gap-2">
                       <Clock size={16} />
-                      {lecture.time}
+                      {lecture.time || "-"}
                     </div>
 
                     <div className="flex items-center gap-2">
                       <User size={16} />
-                      {lecture.faculty}
+                      {lecture.faculty || "-"}
                     </div>
 
                     <div className="flex items-center gap-2">
                       <MapPin size={16} />
-                      {lecture.room}
+                      {lecture.room || "-"}
                     </div>
 
                   </div>

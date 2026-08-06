@@ -1,0 +1,14 @@
+{
+  "FAC001": {
+    "name": "Prof. Patil",
+    "department": "Computer Engineering"
+  },
+  "FAC002": {
+    "name": "Prof. Shah",
+    "department": "Computer Engineering"
+  },
+  "FAC003": {
+    "name": "Prof. Kulkarni",
+    "department": "Computer Engineering"
+  }
+}

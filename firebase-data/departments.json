@@ -1,0 +1,11 @@
+{
+  "COMP": {
+    "name": "Computer Engineering"
+  },
+  "IT": {
+    "name": "Information Technology"
+  },
+  "EXTC": {
+    "name": "Electronics & Telecommunication"
+  }
+}

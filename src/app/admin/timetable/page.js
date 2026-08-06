@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import {
   doc,
   getDoc,
-  updateDoc,
+  getDocs,
+  collection,
+  setDoc,
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
@@ -39,12 +41,17 @@ export default function AdminTimetablePage() {
 
   const [selectedDay, setSelectedDay] = useState("monday");
   const [selectedSemester, setSelectedSemester] = useState("semester4");
+  const [selectedDivision, setSelectedDivision] = useState("A");
 
   const [data, setData] = useState({});
+  const [subjects, setSubjects] = useState([]);
+const [faculties, setFaculties] = useState([]);
+const [rooms, setRooms] = useState([]);
 
   useEffect(() => {
   fetchTimetable();
-}, [selectedSemester]);
+  fetchDropdowns();
+}, [selectedSemester, selectedDivision]);
 
   async function fetchTimetable() {
     try {
@@ -55,12 +62,12 @@ export default function AdminTimetablePage() {
       for (const day of days) {
 
   const ref = doc(
-    db,
-    "timetable",
-    selectedSemester,
-    "days",
-    day
-  );
+  db,
+  "timetable",
+  `${selectedSemester}_${selectedDivision}`,
+  "days",
+  day
+);
 
         const snap = await getDoc(ref);
 
@@ -75,7 +82,45 @@ export default function AdminTimetablePage() {
     } finally {
       setLoading(false);
     }
+  };
+  async function fetchDropdowns() {
+  try {
+    const subjectSnap = await getDocs(
+      collection(db, "subjects")
+    );
+
+    setSubjects(
+      subjectSnap.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
+    );
+
+    const facultySnap = await getDocs(
+      collection(db, "faculty")
+    );
+
+    setFaculties(
+      facultySnap.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
+    );
+
+    const roomSnap = await getDocs(
+      collection(db, "rooms")
+    );
+
+    setRooms(
+      roomSnap.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
+    );
+  } catch (err) {
+    console.error(err);
   }
+}
 
   function handleChange(period, field, value) {
     setData((prev) => ({
@@ -94,15 +139,17 @@ export default function AdminTimetablePage() {
     try {
       setSaving(true);
 
-      const ref = doc(
+     const ref = doc(
   db,
   "timetable",
-  selectedSemester,
+  `${selectedSemester}_${selectedDivision}`,
   "days",
   selectedDay
 );
 
-      await updateDoc(ref, data[selectedDay]);
+      await setDoc(ref, data[selectedDay], {
+  merge: true,
+});
 
       toast.success("Timetable updated successfully.");
     } catch (err) {
@@ -151,6 +198,16 @@ export default function AdminTimetablePage() {
       <option value="semester7">Semester 7</option>
       <option value="semester8">Semester 8</option>
     </select>
+
+    <select
+  value={selectedDivision}
+  onChange={(e) => setSelectedDivision(e.target.value)}
+  className="border rounded-xl px-4 py-2"
+>
+  <option value="A">Division A</option>
+  <option value="B">Division B</option>
+  <option value="C">Division C</option>
+</select>
 
     <button
       onClick={saveDay}

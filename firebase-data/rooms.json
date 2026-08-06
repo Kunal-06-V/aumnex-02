@@ -1,0 +1,14 @@
+{
+  "ROOM101": {
+    "name": "Room 101",
+    "type": "Classroom"
+  },
+  "ROOM102": {
+    "name": "Room 102",
+    "type": "Classroom"
+  },
+  "LAB1": {
+    "name": "Computer Lab 1",
+    "type": "Laboratory"
+  }
+}
