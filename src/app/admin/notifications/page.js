@@ -29,6 +29,15 @@ const emptyForm = {
   type: "General",
   priority: "Medium",
   date: "",
+
+  department: "Computer Engineering",
+  semester: "Semester 4",
+  division: "A",
+
+  target: "Students",
+
+  createdAt: "",
+  createdBy: "",
 };
 
 export default function NotificationsPage() {
@@ -87,40 +96,51 @@ export default function NotificationsPage() {
     setShowForm(false);
     setForm(emptyForm);
   }
-
-  async function handleSave() {
-    if (!form.id || !form.title) {
-     toast.error("Notification ID and Title are required.");
-      return;
-    }
-
-    try {
-      if (editing) {
-        await updateDoc(doc(db, "notifications", form.id), {
-          title: form.title,
-          message: form.message,
-          type: form.type,
-          priority: form.priority,
-          date: form.date,
-        });
-
-        toast.success("Notification updated successfully.");
-      } else {
-        await setDoc(
-          doc(db, "notifications", form.id),
-          form
-        );
-
-        toast.success("Notification added successfully.");
-      }
-
-      resetForm();
-      fetchNotifications();
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to save notification.");
-    }
+async function handleSave() {
+  if (!form.id || !form.title) {
+    toast.error("Notification ID and Title are required.");
+    return;
   }
+
+  try {
+    if (editing) {
+      await updateDoc(doc(db, "notifications", form.id), {
+        title: form.title,
+        message: form.message,
+        type: form.type,
+        priority: form.priority,
+        date: form.date,
+        department: form.department,
+        semester: form.semester,
+        division: form.division,
+        target: form.target,
+      });
+
+      toast.success("Notification updated successfully.");
+    } else {
+
+      const notificationData = {
+        ...form,
+        createdAt: new Date().toISOString(),
+        createdBy: "Administrator",
+      };
+
+      await setDoc(
+        doc(db, "notifications", form.id),
+        notificationData
+      );
+
+      toast.success("Notification added successfully.");
+    }
+
+    resetForm();
+    fetchNotifications();
+
+  } catch (err) {
+    console.error(err);
+    toast.error("Failed to save notification.");
+  }
+}
 
   async function handleDelete(id) {
     if (!confirm("Delete this notification?")) return;
@@ -145,6 +165,14 @@ export default function NotificationsPage() {
       type: item.type || "General",
       priority: item.priority || "Medium",
       date: item.date || "",
+
+      department: item.department || "Computer Engineering",
+      semester: item.semester || "Semester 4",
+      division: item.division || "A",
+      target: item.target || "Students",
+
+      createdAt: item.createdAt || "",
+      createdBy: item.createdBy || "",
     });
   }
 
@@ -223,7 +251,7 @@ export default function NotificationsPage() {
               className="border rounded-xl p-3 md:col-span-2"
               rows={4}
             />
-                        <select
+            <select
               value={form.type}
               onChange={(e) =>
                 setForm({ ...form, type: e.target.value })
@@ -257,6 +285,69 @@ export default function NotificationsPage() {
               }
               className="border rounded-xl p-3 md:col-span-2"
             />
+            <select
+              value={form.department}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  department: e.target.value,
+                })
+              }
+              className="border rounded-xl p-3"
+            >
+              <option>Computer Engineering</option>
+              <option>IT</option>
+              <option>EXTC</option>
+              <option>Mechanical</option>
+              <option>Civil</option>
+            </select>
+            <select
+              value={form.semester}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  semester: e.target.value,
+                })
+              }
+              className="border rounded-xl p-3"
+            >
+              <option>Semester 1</option>
+              <option>Semester 2</option>
+              <option>Semester 3</option>
+              <option>Semester 4</option>
+              <option>Semester 5</option>
+              <option>Semester 6</option>
+              <option>Semester 7</option>
+              <option>Semester 8</option>
+            </select>
+            <select
+              value={form.division}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  division: e.target.value,
+                })
+              }
+              className="border rounded-xl p-3"
+            >
+              <option>A</option>
+              <option>B</option>
+              <option>C</option>
+            </select>
+            <select
+              value={form.target}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  target: e.target.value,
+                })
+              }
+              className="border rounded-xl p-3"
+            >
+              <option>Students</option>
+              <option>Faculty</option>
+              <option>Everyone</option>
+            </select>
 
           </div>
 
@@ -363,13 +454,12 @@ export default function NotificationsPage() {
 
                     <td className="p-4">
                       <span
-                        className={`px-3 py-1 rounded-full text-sm ${
-                          item.priority === "High"
-                            ? "bg-red-100 text-red-700"
-                            : item.priority === "Medium"
+                        className={`px-3 py-1 rounded-full text-sm ${item.priority === "High"
+                          ? "bg-red-100 text-red-700"
+                          : item.priority === "Medium"
                             ? "bg-yellow-100 text-yellow-700"
                             : "bg-green-100 text-green-700"
-                        }`}
+                          }`}
                       >
                         {item.priority}
                       </span>
