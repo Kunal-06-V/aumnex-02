@@ -23,6 +23,7 @@ import {
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     fetchNotifications();
@@ -62,25 +63,47 @@ export default function NotificationsPage() {
   }
 
   function typeIcon(type) {
-    switch (type) {
-      case "Exam":
-        return <BookOpen size={18} />;
-      case "Fees":
-        return <IndianRupee size={18} />;
-      case "Holiday":
-        return <PartyPopper size={18} />;
-      default:
-        return <Bell size={18} />;
-    }
+  switch (type) {
+    case "Exam":
+      return <BookOpen size={22} />;
+
+    case "Fees":
+      return <IndianRupee size={22} />;
+
+    case "Holiday":
+      return <PartyPopper size={22} />;
+
+    default:
+      return <AlertCircle size={22} />;
   }
+}
+  const filteredNotifications = notifications.filter((item) => {
+  const searchText = search.toLowerCase();
+
+  return (
+    item.title?.toLowerCase().includes(searchText) ||
+    item.message?.toLowerCase().includes(searchText) ||
+    item.type?.toLowerCase().includes(searchText)
+  );
+});
 
   return (
     <div className="max-w-5xl mx-auto p-6">
 
-      <PageHeader
-        title="Notifications"
-        subtitle="Latest announcements from the college"
-      />
+     <PageHeader
+  title="Notifications"
+  subtitle="Latest announcements from the college"
+/>
+
+<div className="mb-6">
+  <input
+    type="text"
+    placeholder="Search notifications..."
+    value={search}
+    onChange={(e) => setSearch(e.target.value)}
+    className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none"
+  />
+</div>
 
       {loading ? (
         <div className="space-y-4">
@@ -91,7 +114,7 @@ export default function NotificationsPage() {
             />
           ))}
         </div>
-      ) : notifications.length === 0 ? (
+      ) : filteredNotifications.length === 0 ? (
         <div className="text-center py-20 bg-white rounded-xl shadow">
           <Bell
             size={48}
@@ -106,7 +129,7 @@ export default function NotificationsPage() {
         </div>
       ) : (
         <div className="space-y-5">
-          {notifications.map((item) => (
+  {filteredNotifications.map((item) => (
             <div
               key={item.id}
               className="bg-white rounded-xl shadow-md p-6 border hover:shadow-lg transition"
