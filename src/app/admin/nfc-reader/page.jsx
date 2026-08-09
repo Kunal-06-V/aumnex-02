@@ -14,7 +14,7 @@ import {
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import toast from "react-hot-toast";
-import { markAttendance } from "@/lib/attendanceService";
+import { markAttendanceByUID } from "@/lib/attendanceService";
 
 export default function NFCReaderPage() {
   const [running, setRunning] = useState(false);
@@ -24,98 +24,107 @@ export default function NFCReaderPage() {
   const [semester, setSemester] = useState("Semester 4");
   const [division, setDivision] = useState("A");
 
-   useEffect(() => {
+  useEffect(() => {
     initializeSession();
   }, []);
-  
+
   async function initializeSession() {
-  const sessionRef = doc(db, "attendanceSessions", "current");
+    const sessionRef = doc(db, "attendanceSessions", "current");
 
-  const sessionSnap = await getDoc(sessionRef);
+    const sessionSnap = await getDoc(sessionRef);
 
-  if (!sessionSnap.exists()) {
-    await setDoc(sessionRef, {
-      subject: "Not Selected",
-      faculty: "Not Selected",
-      semester: "Not Selected",
-      division: "Not Selected",
-      room: "Not Selected",
-      status: "inactive",
-      startTime: null,
-      createdAt: new Date(),
-    });
-
-    console.log("Attendance session created.");
-  } else {
-    console.log("Attendance session already exists.");
-  }
-}
-
- async function startAttendance() {
-  setRunning(true);
-
-  try {
-    await setDoc(
-      doc(db, "attendanceSessions", "current"),
-      {
-        subject,
-        semester,
-        division,
-        faculty: "Prof. Patil",
-        room: "A-203",
-        status: "active",
-        startTime: new Date(),
-      },
-      { merge: true }
-    );
-
-   toast.success("Attendance session started.");
-  } catch (error) {
-    console.error("Error:", error);
-    toast.error(error.message);
-  }
-}
-  async function stopAttendance() {
-  setRunning(false);
-
-  try {
-    await setDoc(
-      doc(db, "attendanceSessions", "current"),
-      {
+    if (!sessionSnap.exists()) {
+      await setDoc(sessionRef, {
+        subject: "Not Selected",
+        faculty: "Not Selected",
+        semester: "Not Selected",
+        division: "Not Selected",
+        room: "Not Selected",
         status: "inactive",
-      },
-      { merge: true }
-    );
+        startTime: null,
+        createdAt: new Date(),
+      });
 
-    console.log("Attendance Stopped");
-  } catch (error) {
-    console.error(error);
+      console.log("Attendance session created.");
+    } else {
+      console.log("Attendance session already exists.");
+    }
   }
-}
+
+  async function startAttendance() {
+    setRunning(true);
+
+    try {
+      await setDoc(
+        doc(db, "attendanceSessions", "current"),
+        {
+          subject,
+          semester,
+          division,
+          faculty: "Prof. Patil",
+          room: "A-203",
+          status: "active",
+          startTime: new Date(),
+        },
+        { merge: true }
+      );
+
+      toast.success("Attendance session started.");
+    } catch (error) {
+      console.error("Error:", error);
+      toast.error(error.message);
+    }
+  }
+  async function stopAttendance() {
+    setRunning(false);
+
+    try {
+      await setDoc(
+        doc(db, "attendanceSessions", "current"),
+        {
+          status: "inactive",
+        },
+        { merge: true }
+      );
+
+      console.log("Attendance Stopped");
+    } catch (error) {
+      console.error(error);
+    }
+  }
 
   // Demo scan
- async function simulateScan() {
-  if (!running) return;
+  async function simulateScan() {
+    if (!running) {
+      toast.error("Start attendance first.");
+      return;
+    }
 
-  try {
-    const result = await markAttendance("CE6LFM90xugMdhwrIbC34ANHWeA2");
+    try {
+      // Temporary test NFC UID.
+      // Later this value will come directly from the NFC reader.
+      const nfcUid = "TEST-NFC-001";
+      const result = await markAttendanceByUID(nfcUid);
 
-    setLastStudent({
-      name: result.student,
-      rollNo: "CSE23045",
-      time: new Date().toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      status: "Present",
-    });
+      setLastStudent({
+        name: result.student,
+        rollNo: result.rollNo,
+        semester: result.semester,
+        division: result.division,
+        time: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        status: "Present",
+      });
 
-   toast.success("Attendance marked successfully.");
-  } catch (error) {
-    toast.error(error.message);
+      toast.success("Attendance marked successfully.");
+    } catch (error) {
+      console.error("NFC attendance error:", error);
+      toast.error(error.message);
+    }
   }
-}
-    return (
+  return (
     <div className="min-h-screen bg-gray-100 p-6">
 
       <div className="max-w-6xl mx-auto">
@@ -233,9 +242,8 @@ export default function NFCReaderPage() {
 
               <Smartphone
                 size={70}
-                className={`text-blue-600 ${
-                  running ? "animate-pulse" : ""
-                }`}
+                className={`text-blue-600 ${running ? "animate-pulse" : ""
+                  }`}
               />
 
             </div>
@@ -307,7 +315,21 @@ export default function NFCReaderPage() {
                       Division
                     </p>
                     <h3 className="font-bold">
-                      {division}
+                      {lastStudent.division}
+                    </h3>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <GraduationCap className="text-indigo-600" />
+
+                  <div>
+                    <p className="text-gray-500 text-sm">
+                      Semester
+                    </p>
+
+                    <h3 className="font-bold">
+                      {lastStudent.semester}
                     </h3>
                   </div>
                 </div>

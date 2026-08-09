@@ -11,9 +11,13 @@ import {
 } from "firebase/auth";
 
 import {
+  collection,
   doc,
   getDoc,
+  getDocs,
+  query,
   setDoc,
+  where,
 } from "firebase/firestore";
 
 import {
@@ -21,6 +25,11 @@ import {
   EyeOff,
   GraduationCap,
   Shield,
+  Mail,
+  LockKeyhole,
+  Phone,
+  User,
+  Loader2,
 } from "lucide-react";
 
 import { auth, db } from "@/lib/firebase";
@@ -40,69 +49,125 @@ export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isRegister, setIsRegister] = useState(false);
 
+  // ============================================================
+  // LOGIN
+  // ============================================================
+
   async function handleLogin(e) {
     e.preventDefault();
+
+    if (loading) return;
+
+    const cleanEmail = email.trim();
+
+    if (!cleanEmail || !password) {
+      toast.error("Please enter email and password.");
+      return;
+    }
 
     setLoading(true);
 
     try {
-      await signInWithEmailAndPassword(
+      console.log("LOGIN STEP 1: Starting Firebase login");
+
+      const userCredential = await signInWithEmailAndPassword(
         auth,
-        email,
+        cleanEmail,
         password
       );
-      console.log("Logged In UID:", auth.currentUser.uid);
 
-      // Check Admin Document
-      const adminRef = doc(db, "admin", auth.currentUser.uid);
+      const user = userCredential.user;
 
-      const adminSnap = await getDoc(adminRef);
+      console.log("LOGIN STEP 2: Firebase login successful");
+      console.log("UID:", user.uid);
+      console.log("Email:", user.email);
 
-      if (adminSnap.exists()) {
+      // ========================================================
+      // CHECK ADMIN
+      // ========================================================
+
+      console.log("LOGIN STEP 3: Checking admin document");
+
+      const adminQuery = query(
+        collection(db, "admin"),
+        where("uid", "==", user.uid)
+      );
+
+      const adminSnapshot = await getDocs(adminQuery);
+
+      console.log(
+        "Admin document exists:",
+        !adminSnapshot.empty
+      );
+
+      if (!adminSnapshot.empty) {
+        const adminData = adminSnapshot.docs[0].data();
+
+        console.log(
+          "LOGIN STEP 4: Admin document loaded",
+          adminData
+        );
+
         toast.success("Welcome Admin!");
+
         router.push("/admin/dashboard");
         return;
       }
 
-      // Check Student Document
-      const studentRef = doc(db, "students", auth.currentUser.uid);
+      // ========================================================
+      // CHECK STUDENT
+      // ========================================================
 
-      console.log("Checking document:", studentRef.path);
+      console.log("LOGIN STEP 5: Checking student document");
 
+      const studentRef = doc(db, "students", user.uid);
       const studentSnap = await getDoc(studentRef);
 
-      console.log("Document exists:", studentSnap.exists());
+      console.log(
+        "Student document exists:",
+        studentSnap.exists()
+      );
 
       if (studentSnap.exists()) {
-        console.log("Student Data:", studentSnap.data());
-      }
-
-      if (studentSnap.exists()) {
-
         const studentData = studentSnap.data();
+
+        console.log(
+          "LOGIN STEP 6: Student document loaded",
+          studentData
+        );
 
         setStudent(studentData);
 
-        toast.success(`Welcome ${studentData.name}!`);
+        toast.success(
+          `Welcome ${studentData.name}!`
+        );
+
+        console.log(
+          "LOGIN STEP 7: Redirecting to student dashboard"
+        );
 
         router.push("/student/dashboard");
 
         return;
       }
 
-      toast.error("User record not found.");
-
+      toast.error(
+        "Firebase login succeeded, but no student/admin record was found."
+      );
     } catch (error) {
-      console.error("LOGIN ERROR:", error);
-      console.error("ERROR CODE:", error.code);
-      console.error("ERROR MESSAGE:", error.message);
+      console.error("========== LOGIN ERROR ==========");
+      console.error("Code:", error.code);
+      console.error("Message:", error.message);
+      console.error("Full error:", error);
+      console.error("=================================");
+
       switch (error.code) {
         case "auth/invalid-credential":
           toast.error("Invalid email or password.");
           break;
 
         case "auth/user-not-found":
-          toast.error("User not found.");
+          toast.error("User account not found.");
           break;
 
         case "auth/wrong-password":
@@ -114,20 +179,38 @@ export default function LoginForm() {
           break;
 
         case "auth/too-many-requests":
-          toast.error("Too many login attempts. Please try again later.");
+          toast.error(
+            "Too many login attempts. Try again later."
+          );
+          break;
+
+        case "auth/network-request-failed":
+          toast.error(
+            "Network error. Check the phone's internet connection."
+          );
+          break;
+
+        case "auth/operation-not-allowed":
+          toast.error(
+            "Email/password login is disabled in Firebase."
+          );
           break;
 
         default:
-          toast.error("Something went wrong. Please try again.");
+          toast.error(
+            `Login failed: ${error.code || error.message}`
+          );
       }
-
-      setPassword("");   // 👈 Add this here
     } finally {
       setLoading(false);
     }
   }
-  async function handleRegister() {
 
+  // ============================================================
+  // REGISTER
+  // ============================================================
+
+  async function handleRegister() {
     if (!fullName.trim()) {
       toast.error("Please enter your full name.");
       return;
@@ -144,7 +227,9 @@ export default function LoginForm() {
     }
 
     if (password.length < 6) {
-      toast.error("Password must be at least 6 characters.");
+      toast.error(
+        "Password must be at least 6 characters."
+      );
       return;
     }
 
@@ -156,69 +241,71 @@ export default function LoginForm() {
     setLoading(true);
 
     try {
-
       const userCredential =
         await createUserWithEmailAndPassword(
           auth,
-          email,
+          email.trim(),
           password
         );
 
-      console.log("New UID:", userCredential.user.uid);
+      console.log(
+        "New UID:",
+        userCredential.user.uid
+      );
+
       const uid = userCredential.user.uid;
 
-await setDoc(doc(db, "students", uid), {
-  uid,
-  role: "student",
-  email,
-  status: "Active",
+      // Create student document
+      await setDoc(doc(db, "students", uid), {
+        uid,
+        role: "student",
+        email: email.trim(),
+        status: "Active",
 
-  name: fullName,
-  email,
-  phone,
+        name: fullName.trim(),
+        phone: phone.trim(),
 
-  department: "",
-  semester: "",
-  division: "",
-  rollNo: "",
-  prn: "",
+        department: "",
+        semester: "",
+        division: "",
+        rollNo: "",
+        prn: "",
 
-  attendancePercentage: 0,
-  overallCGPA: 0,
+        attendancePercentage: 0,
+        overallCGPA: 0,
 
-  totalFees: 0,
-  feesPaid: 0,
-  feesPending: 0,
+        totalFees: 0,
+        feesPaid: 0,
+        feesPending: 0,
 
-  profileImage: "",
-  nfcUid: "",
+        profileImage: "",
+        nfcUid: "",
 
-  createdAt: new Date().toISOString(),
-});
+        createdAt: new Date().toISOString(),
+      });
 
-await setDoc(doc(db, "users", uid), {
-  uid,
-  role: "student",
-  email,
-});
+      // Create users document
+      await setDoc(doc(db, "users", uid), {
+        uid,
+        role: "student",
+        email: email.trim(),
+      });
 
-     toast.success("Registration successful!");
-     setFullName("");
-setPhone("");
-setEmail("");
-setPassword("");
-setConfirmPassword("");
+      toast.success("Registration successful!");
 
-router.push("/student/dashboard");
+      setFullName("");
+      setPhone("");
+      setEmail("");
+      setPassword("");
+      setConfirmPassword("");
 
+      router.push("/student/dashboard");
     } catch (error) {
-
       console.error("REGISTER ERROR:", error);
-console.error("ERROR CODE:", error.code);
-console.error("ERROR MESSAGE:", error.message);
+      console.error("ERROR CODE:", error.code);
+      console.error("ERROR MESSAGE:", error.message);
 
       switch (error.code) {
-
         case "auth/email-already-in-use":
           toast.error("Email already registered.");
           break;
@@ -234,41 +321,72 @@ console.error("ERROR MESSAGE:", error.message);
         default:
           toast.error("Registration failed.");
       }
-
     } finally {
-
       setLoading(false);
-
     }
-
   }
+
+  // ============================================================
+  // FORGOT PASSWORD
+  // ============================================================
+
   async function handleForgotPassword() {
-    if (!email.trim()) {
-      toast.error("Please enter your email address first.");
+    const cleanEmail = email.trim();
+
+    if (!cleanEmail) {
+      toast.error(
+        "Please enter your email address first."
+      );
       return;
     }
 
     try {
-      await sendPasswordResetEmail(auth, email);
+      await sendPasswordResetEmail(
+        auth,
+        cleanEmail
+      );
 
-      toast.success("Password reset email sent. Check your inbox.");
+      toast.success(
+        "Password reset email sent. Check your inbox."
+      );
     } catch (error) {
       switch (error.code) {
         case "auth/user-not-found":
-          toast.error("No account found with this email.");
+          toast.error(
+            "No account found with this email."
+          );
           break;
 
         case "auth/invalid-email":
-          toast.error("Please enter a valid email address.");
+          toast.error(
+            "Please enter a valid email address."
+          );
           break;
 
         default:
-          toast.error("Failed to send password reset email.");
+          toast.error(
+            "Failed to send password reset email."
+          );
       }
     }
   }
+
+  // ============================================================
+  // INPUT STYLES
+  // ============================================================
+
+  const inputClass =
+    "w-full h-12 rounded-xl border border-slate-300 bg-white px-4 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-500 dark:focus:ring-blue-500/10";
+
+  const labelClass =
+    "mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200";
+
+  // ============================================================
+  // UI
+  // ============================================================
+
   return (
-    <div className="w-full max-w-md">
+    <div className="w-full max-w-md px-4 sm:px-0">
 
       <form
         onSubmit={(e) => {
@@ -280,42 +398,114 @@ console.error("ERROR MESSAGE:", error.message);
             handleLogin(e);
           }
         }}
-        className="bg-white/90 backdrop-blur rounded-3xl shadow-2xl p-8 border border-gray-200"
+        className="
+          overflow-hidden
+          rounded-3xl
+          border
+          border-slate-200
+          bg-white
+          p-6
+          shadow-2xl
+          shadow-slate-300/40
+          dark:border-slate-800
+          dark:bg-slate-900
+          dark:shadow-black/40
+          sm:p-8
+        "
       >
 
-        {/* Logo */}
+        {/* ====================================================
+            LOGO
+        ==================================================== */}
 
-        <div className="flex justify-center mb-5">
+        <div className="flex justify-center">
 
-          <div className="bg-blue-100 p-5 rounded-full">
-
+          <div
+            className="
+              flex
+              h-16
+              w-16
+              items-center
+              justify-center
+              rounded-2xl
+              bg-blue-50
+              ring-8
+              ring-blue-50/60
+              dark:bg-blue-500/10
+              dark:ring-blue-500/5
+            "
+          >
             <GraduationCap
-              size={45}
-              className="text-blue-700"
+              size={34}
+              strokeWidth={2.2}
+              className="text-blue-600 dark:text-blue-400"
             />
-
           </div>
 
         </div>
 
-        <h1 className="text-4xl font-bold text-center text-blue-700">
-          AUMNex
-        </h1>
+        {/* ====================================================
+            BRAND
+        ==================================================== */}
 
-        <p className="text-center text-gray-500 mt-2">
-          Smart NFC Student Management System
-        </p>
-        {/* Login / Register Tabs */}
+        <div className="mt-5 text-center">
 
-        <div className="mt-8 flex bg-gray-100 rounded-xl p-1">
+          <h1
+            className="
+              text-3xl
+              font-bold
+              tracking-tight
+              text-slate-900
+              dark:text-white
+            "
+          >
+            AUMNex
+          </h1>
+
+          <p
+            className="
+              mt-2
+              text-sm
+              text-slate-500
+              dark:text-slate-400
+            "
+          >
+            Smart NFC Student Management System
+          </p>
+
+        </div>
+
+        {/* ====================================================
+            LOGIN / REGISTER TABS
+        ==================================================== */}
+
+        <div
+          className="
+            mt-7
+            flex
+            rounded-xl
+            bg-slate-100
+            p-1
+            dark:bg-slate-800
+          "
+        >
 
           <button
             type="button"
             onClick={() => setIsRegister(false)}
-            className={`w-1/2 py-2 rounded-lg font-semibold transition ${!isRegister
-              ? "bg-blue-600 text-white shadow"
-              : "text-gray-600"
-              }`}
+            className={`
+              w-1/2
+              rounded-lg
+              py-2.5
+              text-sm
+              font-semibold
+              transition-all
+              ${
+                !isRegister
+                  ? "bg-blue-600 text-white shadow-md"
+                  : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+              }
+            `}
           >
             Login
           </button>
@@ -323,152 +513,317 @@ console.error("ERROR MESSAGE:", error.message);
           <button
             type="button"
             onClick={() => setIsRegister(true)}
-            className={`w-1/2 py-2 rounded-lg font-semibold transition ${isRegister
-              ? "bg-blue-600 text-white shadow"
-              : "text-gray-600"
-              }`}
+            className={`
+              w-1/2
+              rounded-lg
+              py-2.5
+              text-sm
+              font-semibold
+              transition-all
+              ${
+                isRegister
+                  ? "bg-blue-600 text-white shadow-md"
+                  : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+              }
+            `}
           >
             Register
           </button>
 
         </div>
 
-        <div className="flex justify-center gap-6 mt-6">
+        {/* ====================================================
+            ROLE INDICATOR
+        ==================================================== */}
 
-          <div className="flex items-center gap-2 text-blue-600">
-            <GraduationCap size={18} />
+        <div className="mt-5 flex justify-center gap-7">
+
+          <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+            <GraduationCap size={17} />
             <span className="text-sm font-medium">
               Student
             </span>
           </div>
 
-          <div className="flex items-center gap-2 text-purple-600">
-            <Shield size={18} />
+          <div className="flex items-center gap-2 text-purple-600 dark:text-purple-400">
+            <Shield size={17} />
             <span className="text-sm font-medium">
               Admin
             </span>
           </div>
 
         </div>
-        {/* Full Name (Register Only) */}
+
+        {/* ====================================================
+            REGISTER NAME
+        ==================================================== */}
 
         {isRegister && (
-          <div className="mt-8">
+          <div className="mt-7">
 
-            <label className="block text-sm font-medium mb-2">
+            <label className={labelClass}>
               Full Name
             </label>
 
-            <input
-              type="text"
-              placeholder="Enter your full name"
-              className="w-full p-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-            />
+            <div className="relative">
+
+              <User
+                size={18}
+                className="
+                  absolute
+                  left-4
+                  top-1/2
+                  -translate-y-1/2
+                  text-slate-400
+                  dark:text-slate-500
+                "
+              />
+
+              <input
+                type="text"
+                placeholder="Enter your full name"
+                className={`${inputClass} pl-11`}
+                value={fullName}
+                onChange={(e) =>
+                  setFullName(e.target.value)
+                }
+                autoComplete="name"
+              />
+
+            </div>
 
           </div>
         )}
 
-        {/* Email */}
+        {/* ====================================================
+            EMAIL
+        ==================================================== */}
 
-        <div className="mt-8">
+        <div className={isRegister ? "mt-5" : "mt-7"}>
 
-          <label className="block text-sm font-medium mb-2">
+          <label className={labelClass}>
             Email Address
           </label>
 
-          <input
-            type="email"
-            placeholder="Enter your email"
-            className="w-full p-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
+          <div className="relative">
+
+            <Mail
+              size={18}
+              className="
+                absolute
+                left-4
+                top-1/2
+                -translate-y-1/2
+                text-slate-400
+                dark:text-slate-500
+              "
+            />
+
+            <input
+              type="email"
+              placeholder="Enter your email"
+              className={`${inputClass} pl-11`}
+              value={email}
+              onChange={(e) =>
+                setEmail(e.target.value)
+              }
+              autoComplete="email"
+              required
+            />
+
+          </div>
 
         </div>
-        {/* Phone Number (Register Only) */}
+
+        {/* ====================================================
+            PHONE
+        ==================================================== */}
 
         {isRegister && (
           <div className="mt-5">
 
-            <label className="block text-sm font-medium mb-2">
+            <label className={labelClass}>
               Phone Number
             </label>
 
-            <input
-              type="text"
-              placeholder="Enter your phone number"
-              className="w-full p-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-            />
+            <div className="relative">
+
+              <Phone
+                size={18}
+                className="
+                  absolute
+                  left-4
+                  top-1/2
+                  -translate-y-1/2
+                  text-slate-400
+                  dark:text-slate-500
+                "
+              />
+
+              <input
+                type="tel"
+                placeholder="Enter your phone number"
+                className={`${inputClass} pl-11`}
+                value={phone}
+                onChange={(e) =>
+                  setPhone(e.target.value)
+                }
+                autoComplete="tel"
+              />
+
+            </div>
 
           </div>
         )}
 
-        {/* Password */}
+        {/* ====================================================
+            PASSWORD
+        ==================================================== */}
 
         <div className="mt-5">
 
-          <label className="block text-sm font-medium mb-2">
+          <label className={labelClass}>
             Password
           </label>
 
           <div className="relative">
 
+            <LockKeyhole
+              size={18}
+              className="
+                absolute
+                left-4
+                top-1/2
+                -translate-y-1/2
+                text-slate-400
+                dark:text-slate-500
+              "
+            />
+
             <input
-              type={showPassword ? "text" : "password"}
+              type={
+                showPassword
+                  ? "text"
+                  : "password"
+              }
               placeholder="Enter your password"
-              className="w-full p-3 pr-12 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none"
+              className={`${inputClass} pl-11 pr-12`}
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) =>
+                setPassword(e.target.value)
+              }
+              autoComplete={
+                isRegister
+                  ? "new-password"
+                  : "current-password"
+              }
               required
             />
 
             <button
               type="button"
               onClick={() =>
-                setShowPassword(!showPassword)
+                setShowPassword(
+                  !showPassword
+                )
               }
-              className="absolute right-4 top-3.5 text-gray-500"
+              className="
+                absolute
+                right-3
+                top-1/2
+                -translate-y-1/2
+                rounded-lg
+                p-2
+                text-slate-400
+                transition
+                hover:bg-slate-100
+                hover:text-slate-700
+                dark:hover:bg-slate-800
+                dark:hover:text-slate-200
+              "
+              aria-label={
+                showPassword
+                  ? "Hide password"
+                  : "Show password"
+              }
             >
               {showPassword ? (
-                <EyeOff size={20} />
+                <EyeOff size={19} />
               ) : (
-                <Eye size={20} />
+                <Eye size={19} />
               )}
             </button>
-            {isRegister && (
-              <div className="mt-5">
-
-                <label className="block text-sm font-medium mb-2">
-                  Confirm Password
-                </label>
-
-                <input
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Confirm your password"
-                  className="w-full p-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                />
-
-              </div>
-            )}
 
           </div>
 
         </div>
 
+        {/* ====================================================
+            CONFIRM PASSWORD
+        ==================================================== */}
+
+        {isRegister && (
+          <div className="mt-5">
+
+            <label className={labelClass}>
+              Confirm Password
+            </label>
+
+            <div className="relative">
+
+              <LockKeyhole
+                size={18}
+                className="
+                  absolute
+                  left-4
+                  top-1/2
+                  -translate-y-1/2
+                  text-slate-400
+                  dark:text-slate-500
+                "
+              />
+
+              <input
+                type={
+                  showPassword
+                    ? "text"
+                    : "password"
+                }
+                placeholder="Confirm your password"
+                className={`${inputClass} pl-11`}
+                value={confirmPassword}
+                onChange={(e) =>
+                  setConfirmPassword(
+                    e.target.value
+                  )
+                }
+                autoComplete="new-password"
+              />
+
+            </div>
+
+          </div>
+        )}
+
+        {/* ====================================================
+            FORGOT PASSWORD
+        ==================================================== */}
+
         {!isRegister && (
-          <div className="flex justify-end mt-3">
+          <div className="mt-3 flex justify-end">
 
             <button
               type="button"
               onClick={handleForgotPassword}
-              className="text-sm text-blue-600 hover:underline"
+              className="
+                text-sm
+                font-medium
+                text-blue-600
+                hover:text-blue-700
+                hover:underline
+                dark:text-blue-400
+                dark:hover:text-blue-300
+              "
             >
               Forgot Password?
             </button>
@@ -476,20 +831,73 @@ console.error("ERROR MESSAGE:", error.message);
           </div>
         )}
 
+        {/* ====================================================
+            SUBMIT BUTTON
+        ==================================================== */}
+
         <button
           type="submit"
           disabled={loading}
-          className="w-full mt-8 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white py-3 rounded-xl font-semibold transition"
+          className="
+            mt-7
+            flex
+            h-12
+            w-full
+            items-center
+            justify-center
+            gap-2
+            rounded-xl
+            bg-blue-600
+            text-sm
+            font-semibold
+            text-white
+            shadow-lg
+            shadow-blue-600/20
+            transition-all
+            hover:bg-blue-700
+            hover:shadow-blue-600/30
+            disabled:cursor-not-allowed
+            disabled:bg-slate-400
+            disabled:shadow-none
+            dark:bg-blue-600
+            dark:hover:bg-blue-500
+          "
         >
-          {loading
-            ? (isRegister ? "Registering..." : "Signing In...")
-            : (isRegister ? "Register" : "Login")}
+
+          {loading ? (
+            <>
+              <Loader2
+                size={18}
+                className="animate-spin"
+              />
+
+              {isRegister
+                ? "Creating Account..."
+                : "Signing In..."}
+            </>
+          ) : (
+            isRegister
+              ? "Create Account"
+              : "Login"
+          )}
+
         </button>
 
-        <p className="text-center text-gray-500 text-sm mt-6">
-          One Login for Students & Admin
-        </p>
+        {/* ====================================================
+            FOOTER
+        ==================================================== */}
 
+        <p
+          className="
+            mt-6
+            text-center
+            text-xs
+            text-slate-500
+            dark:text-slate-400
+          "
+        >
+          One secure login for Students & Admin
+        </p>
 
       </form>
 
