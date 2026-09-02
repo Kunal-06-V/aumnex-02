@@ -37,8 +37,6 @@ export async function markAttendance(studentId) {
     throw new Error("Attendance session not found");
   }
 
-  // IMPORTANT:
-  // Create session variable BEFORE using it
   const session = sessionSnap.data();
 
   // Check session status
@@ -57,16 +55,6 @@ export async function markAttendance(studentId) {
     );
   }
 
-  // Prevent duplicate attendance
-  const today = new Date().toDateString();
-
-  if (
-    student.lastAttendanceDate === today &&
-    student.lastSubject === session.subject
-  ) {
-    throw new Error("Attendance already marked today");
-  }
-
   // Save Attendance History
   await addDoc(
     collection(db, "attendanceHistory"),
@@ -80,6 +68,7 @@ export async function markAttendance(studentId) {
       faculty: session.faculty,
       room: session.room,
       status: "Present",
+      sessionId: "current",
       createdAt: serverTimestamp(),
     }
   );
@@ -87,7 +76,7 @@ export async function markAttendance(studentId) {
   // Update Student
   await updateDoc(studentRef, {
     attendance: increment(1),
-    lastAttendanceDate: today,
+    lastAttendanceDate: new Date().toDateString(),
     lastSubject: session.subject,
   });
 
@@ -119,6 +108,7 @@ export async function markAttendance(studentId) {
     division: student.division,
   };
 }
+
 export async function markAttendanceByUID(nfcUid) {
   const studentQuery = query(
     collection(db, "students"),

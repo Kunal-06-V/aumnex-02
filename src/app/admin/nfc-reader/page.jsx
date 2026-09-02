@@ -51,30 +51,45 @@ export default function NFCReaderPage() {
     }
   }
 
-  async function startAttendance() {
-    setRunning(true);
+ async function startAttendance() {
+  setRunning(true);
 
-    try {
-      await setDoc(
-        doc(db, "attendanceSessions", "current"),
-        {
-          subject,
-          semester,
-          division,
-          faculty: "Prof. Patil",
-          room: "A-203",
-          status: "active",
-          startTime: new Date(),
-        },
-        { merge: true }
-      );
+  try {
+    const sessionId = crypto.randomUUID();
 
-      toast.success("Attendance session started.");
-    } catch (error) {
-      console.error("Error:", error);
-      toast.error(error.message);
-    }
+    const now = new Date();
+
+    const date = now.toISOString().split("T")[0];
+
+    await setDoc(
+      doc(db, "attendanceSessions", "current"),
+      {
+        sessionId,
+        date,
+
+        subject,
+        semester,
+        division,
+
+        faculty: "Prof. Patil",
+        room: "A-203",
+
+        status: "active",
+
+        present: 0,
+
+        createdAt: now,
+        startTime: now,
+      }
+    );
+
+    toast.success("Attendance session started.");
+  } catch (error) {
+    console.error("Error:", error);
+    toast.error(error.message);
+    setRunning(false);
   }
+}
   async function stopAttendance() {
     setRunning(false);
 
@@ -103,7 +118,7 @@ export default function NFCReaderPage() {
     try {
       // Temporary test NFC UID.
       // Later this value will come directly from the NFC reader.
-      const nfcUid = "TEST-NFC-001";
+const nfcUid = "53591D6AA20001";
       const result = await markAttendanceByUID(nfcUid);
 
       setLastStudent({
