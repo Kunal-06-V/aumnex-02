@@ -9,6 +9,8 @@ export default function SearchBar() {
 
       <input
         type="text"
+        id="global-search"
+        name="search"
         placeholder="Search..."
         className="ml-3 bg-transparent outline-none w-full"
       />

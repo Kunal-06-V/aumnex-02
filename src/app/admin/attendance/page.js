@@ -31,7 +31,10 @@ export default function AttendancePage() {
 
 
   async function handleLoadStudents(sessionData) {
-
+    if (!sessionData.subject?.trim()) {
+      toast.error("Please enter a subject.");
+      return;
+    }
     try {
       console.log("Session Data:", sessionData);
       setSession(sessionData);
@@ -78,7 +81,10 @@ export default function AttendancePage() {
 
   }
   async function handleSaveAttendance() {
-
+      if (!session?.subject?.trim()) {
+  toast.error("Subject is required before saving attendance.");
+  return;
+}
     if (!session) {
       toast.error("Load students first.");
       return;
