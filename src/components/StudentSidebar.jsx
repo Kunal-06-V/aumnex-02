@@ -11,6 +11,7 @@ import {
   CalendarDays,
   Bell,
   ShieldAlert,
+  Brain,
   LogOut,
 } from "lucide-react";
 
@@ -41,15 +42,22 @@ const menuItems = [
     icon: CalendarDays,
   },
   {
-    title: "Notifications",
-    href: "/student/notifications",
-    icon: Bell,
-  },
-  {
-    title: "SOS",
-    href: "/student/sos",
-    icon: ShieldAlert,
-  },
+  title: "Notifications",
+  href: "/student/notifications",
+  icon: Bell,
+},
+
+{
+  title: "AI Advisor",
+  href: "/student/Ai",
+  icon: Brain,
+},
+
+{
+  title: "SOS",
+  href: "/student/sos",
+  icon: ShieldAlert,
+},
 ];
 
 export default function StudentSidebar() {

@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Smartphone } from "lucide-react";
-
+import { Smartphone, Brain } from "lucide-react";
 import {
   LayoutDashboard,
   Users,
@@ -62,6 +61,11 @@ const menuItems = [
     href: "/admin/reports",
     icon: BarChart3,
   },
+  {
+  title: "Intelligence",
+  href: "/admin/Ai",
+  icon: Brain,
+},
 ];
 
 export default function AdminSidebar() {
