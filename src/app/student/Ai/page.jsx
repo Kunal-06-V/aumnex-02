@@ -146,10 +146,10 @@ export default function StudentAIPage() {
         attendance.total === 0
           ? null
           : Math.round(
-              (attendance.present /
-                attendance.total) *
-                100
-            );
+            (attendance.present /
+              attendance.total) *
+            100
+          );
 
       const subjectList = Object.entries(
         attendance.subjects
@@ -159,10 +159,10 @@ export default function StudentAIPage() {
             data.total === 0
               ? 0
               : Math.round(
-                  (data.present /
-                    data.total) *
-                    100
-                );
+                (data.present /
+                  data.total) *
+                100
+              );
 
           return {
             subject,
@@ -210,8 +210,41 @@ export default function StudentAIPage() {
           ? "Not available"
           : `${recentPresent} of last ${recentRecords.length} sessions`;
 
+      const semesterId = (
+        student.semester || ""
+      ).replace(/\s+/g, "");
+
+      let academicResult = null;
+
+      try {
+        const semesterSnapshot = await getDocs(
+          collection(
+            db,
+            "results",
+            student.uid,
+            "semesters"
+          )
+        );
+
+        const matchingSemester =
+          semesterSnapshot.docs.find(
+            (semesterDoc) =>
+              semesterDoc.id === semesterId
+          );
+
+        if (matchingSemester) {
+          academicResult =
+            matchingSemester.data();
+        }
+      } catch (academicError) {
+        console.error(
+          "Failed to load academic result:",
+          academicError
+        );
+      }
+
       const academicScore =
-        getAcademicScore(student);
+        getAcademicScore(academicResult);
 
       setProfile({
         attendancePercentage,
@@ -244,14 +277,11 @@ export default function StudentAIPage() {
       setAnalyzing(true);
       setError("");
 
-      if (
-        !profile ||
-        profile.attendancePercentage === null
-      ) {
-        throw new Error(
-          "There is not enough attendance data to generate an analysis yet."
-        );
-      }
+      if (!profile) {
+  throw new Error(
+    "There is not enough academic data to generate an analysis yet."
+  );
+}
 
       const response = await fetch(
         "/api/ai",
@@ -297,7 +327,7 @@ export default function StudentAIPage() {
       ) {
         throw new Error(
           result.message ||
-            "AI analysis failed."
+          "AI analysis failed."
         );
       }
 
@@ -310,7 +340,7 @@ export default function StudentAIPage() {
 
       setError(
         error.message ||
-          "AI analysis failed."
+        "AI analysis failed."
       );
     } finally {
       setAnalyzing(false);
@@ -414,7 +444,7 @@ export default function StudentAIPage() {
           title="Attendance"
           value={
             profile.attendancePercentage ===
-            null
+              null
               ? "N/A"
               : `${profile.attendancePercentage}%`
           }
@@ -443,7 +473,7 @@ export default function StudentAIPage() {
           title="Academic Score"
           value={
             profile.academicScore ===
-            null
+              null
               ? "N/A"
               : `${profile.academicScore}%`
           }
@@ -468,7 +498,7 @@ export default function StudentAIPage() {
 
           <span className="font-bold text-blue-600">
             {profile.attendancePercentage ===
-            null
+              null
               ? "N/A"
               : `${profile.attendancePercentage}%`}
           </span>
@@ -480,7 +510,7 @@ export default function StudentAIPage() {
             style={{
               width: `${Math.min(
                 profile.attendancePercentage ||
-                  0,
+                0,
                 100
               )}%`,
             }}
@@ -496,7 +526,7 @@ export default function StudentAIPage() {
         {profile.attendancePercentage !==
           null &&
           profile.attendancePercentage <
-            75 && (
+          75 && (
             <div className="mt-5 bg-yellow-50 border border-yellow-200 rounded-2xl p-4">
               <p className="font-semibold text-yellow-800">
                 Attendance needs attention
@@ -530,7 +560,7 @@ export default function StudentAIPage() {
         </div>
 
         {profile.subjects.length ===
-        0 ? (
+          0 ? (
           <div className="text-center py-10 text-gray-500">
             No subject attendance data available.
           </div>
@@ -555,12 +585,11 @@ export default function StudentAIPage() {
                     </div>
 
                     <span
-                      className={`font-bold ${
-                        subject.percentage <
-                        75
+                      className={`font-bold ${subject.percentage <
+                          75
                           ? "text-red-600"
                           : "text-green-600"
-                      }`}
+                        }`}
                     >
                       {subject.percentage}%
                     </span>
@@ -604,11 +633,7 @@ export default function StudentAIPage() {
 
           <button
             onClick={analyzeMyPerformance}
-            disabled={
-              analyzing ||
-              profile.attendancePercentage ===
-                null
-            }
+            disabled={analyzing}
             className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-5 py-3 rounded-xl font-medium"
           >
             {analyzing ? (
@@ -735,12 +760,8 @@ export default function StudentAIPage() {
 /* Helpers */
 /* -------------------------------- */
 
-function getAcademicScore(
-  student
-) {
-  const cgpa = Number(
-    student?.overallCGPA
-  );
+function getAcademicScore(result) {
+  const cgpa = Number(result?.cgpa);
 
   if (
     !Number.isFinite(cgpa) ||
@@ -749,11 +770,11 @@ function getAcademicScore(
     return null;
   }
 
-  return Math.round(
+  return Number(
     Math.min(
       Math.max((cgpa / 10) * 100, 0),
       100
-    )
+    ).toFixed(1)
   );
 }
 
@@ -802,10 +823,9 @@ function RiskBadge({
 
   return (
     <span
-      className={`inline-flex px-3 py-1 rounded-full text-sm font-semibold ${
-        styles[risk] ||
+      className={`inline-flex px-3 py-1 rounded-full text-sm font-semibold ${styles[risk] ||
         "bg-gray-100 text-gray-700"
-      }`}
+        }`}
     >
       {risk}
     </span>

@@ -46,6 +46,42 @@ export default function AdminAIPage() {
           ...studentDoc.data(),
         })
       );
+      const academicMap = {};
+
+      for (const student of rawStudents) {
+        try {
+          const semesterSnapshot = await getDocs(
+            collection(
+              db,
+              "results",
+              student.uid,
+              "semesters"
+            )
+          );
+
+          const matchingSemester =
+            semesterSnapshot.docs
+              .map((semesterDoc) => ({
+                id: semesterDoc.id,
+                ...semesterDoc.data(),
+              }))
+              .find(
+                (result) =>
+                  result.semester === student.semester
+              );
+
+          academicMap[student.uid] =
+            matchingSemester || null;
+        } catch (error) {
+          console.error(
+            "Failed to load academic result:",
+            student.uid,
+            error
+          );
+
+          academicMap[student.uid] = null;
+        }
+      }
 
       /*
        * Build attendance statistics from the actual
@@ -64,18 +100,18 @@ export default function AdminAIPage() {
           continue;
         }
 
-      const sessionData = sessionDoc.data();
+        const sessionData = sessionDoc.data();
 
-try {
-  const sessionStudentsSnapshot =
-    await getDocs(
-      collection(
-        db,
-        "attendanceSessions",
-        sessionDoc.id,
-        "students"
-      )
-    );
+        try {
+          const sessionStudentsSnapshot =
+            await getDocs(
+              collection(
+                db,
+                "attendanceSessions",
+                sessionDoc.id,
+                "students"
+              )
+            );
 
           for (const studentRecord of sessionStudentsSnapshot.docs) {
             const studentData =
@@ -84,19 +120,19 @@ try {
             const uid =
               studentData.uid || studentRecord.id;
             const matchingStudent = rawStudents.find(
-  (student) => student.uid === uid
-);
+              (student) => student.uid === uid
+            );
 
-if (!matchingStudent) {
-  continue;
-}
+            if (!matchingStudent) {
+              continue;
+            }
 
-if (
-  sessionData.semester !== matchingStudent.semester ||
-  sessionData.division !== matchingStudent.division
-) {
-  continue;
-}
+            if (
+              sessionData.semester !== matchingStudent.semester ||
+              sessionData.division !== matchingStudent.division
+            ) {
+              continue;
+            }
             if (!attendanceMap[uid]) {
               attendanceMap[uid] = {
                 present: 0,
@@ -180,11 +216,14 @@ if (
             total === 0
               ? null
               : Math.round(
-                  (present / total) * 100
-                );
+                (present / total) * 100
+              );
 
-          const academicScore =
-            getAcademicScore(student);
+         const academicResult =
+  academicMap[student.uid];
+
+const academicScore =
+  getAcademicScore(academicResult);
 
           const riskLevel =
             calculateRisk(
@@ -296,18 +335,18 @@ if (
         }
       );
 
-     const result =
-  await response.json();
+      const result =
+        await response.json();
 
-console.log("AUMNex AI RESULT:", result);
+      console.log("AUMNex AI RESULT:", result);
 
-if (
+      if (
         !response.ok ||
         !result.success
       ) {
         throw new Error(
           result.message ||
-            "AI analysis failed."
+          "AI analysis failed."
         );
       }
 
@@ -323,7 +362,7 @@ if (
 
       setError(
         analysisError.message ||
-          "AI analysis failed."
+        "AI analysis failed."
       );
     } finally {
       setAnalyzingUid(null);
@@ -536,14 +575,14 @@ if (
 
                       <td className="py-4 px-3">
                         {student.calculatedAttendance ===
-                        null
+                          null
                           ? "N/A"
                           : `${student.calculatedAttendance}%`}
                       </td>
 
                       <td className="py-4 px-3">
                         {student.academicScore ===
-                        null
+                          null
                           ? "N/A"
                           : `${student.academicScore}%`}
                       </td>
@@ -565,14 +604,14 @@ if (
                           }
                           disabled={
                             analyzingUid !==
-                              null ||
+                            null ||
                             student.calculatedAttendance ===
-                              null
+                            null
                           }
                           className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-xl text-sm font-medium"
                         >
                           {analyzingUid ===
-                          student.uid ? (
+                            student.uid ? (
                             <>
                               <Loader2
                                 size={16}
@@ -638,22 +677,22 @@ if (
               <div className="space-y-2">
                 {(insight.concerns ||
                   []).map(
-                  (item, index) => (
-                    <div
-                      key={index}
-                      className="flex gap-3 bg-red-50 rounded-xl p-3"
-                    >
-                      <AlertTriangle
-                        size={18}
-                        className="text-red-600 mt-0.5 shrink-0"
-                      />
+                    (item, index) => (
+                      <div
+                        key={index}
+                        className="flex gap-3 bg-red-50 rounded-xl p-3"
+                      >
+                        <AlertTriangle
+                          size={18}
+                          className="text-red-600 mt-0.5 shrink-0"
+                        />
 
-                      <span className="text-sm text-gray-700">
-                        {item}
-                      </span>
-                    </div>
-                  )
-                )}
+                        <span className="text-sm text-gray-700">
+                          {item}
+                        </span>
+                      </div>
+                    )
+                  )}
               </div>
             </div>
 
@@ -696,10 +735,8 @@ if (
 /* Helpers */
 /* ----------------------------- */
 
-function getAcademicScore(student) {
-  const cgpa = Number(
-    student.overallCGPA
-  );
+function getAcademicScore(result) {
+  const cgpa = Number(result?.cgpa);
 
   if (
     !Number.isFinite(cgpa) ||
@@ -783,10 +820,10 @@ function getWeakestSubject(
           data.total === 0
             ? 0
             : Math.round(
-                (data.present /
-                  data.total) *
-                  100
-              );
+              (data.present /
+                data.total) *
+              100
+            );
 
         return {
           subject,
@@ -888,10 +925,9 @@ function RiskBadge({ risk }) {
 
   return (
     <span
-      className={`inline-flex px-3 py-1 rounded-full text-sm font-semibold ${
-        styles[risk] ||
+      className={`inline-flex px-3 py-1 rounded-full text-sm font-semibold ${styles[risk] ||
         "bg-gray-100 text-gray-700"
-      }`}
+        }`}
     >
       {risk}
     </span>

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+
 import { GoogleGenAI, Type } from "@google/genai";
 
 const ai = new GoogleGenAI({
@@ -28,25 +29,23 @@ export async function POST(request) {
       );
     }
 
-    if (attendancePercentage === undefined) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Attendance percentage is required.",
-        },
-        { status: 400 }
-      );
-    }
+    /*
+     * Attendance may be unavailable.
+     * null/undefined must stay "unavailable",
+     * never become 0.
+     */
+    const hasAttendanceScore =
+      attendancePercentage !== null &&
+      attendancePercentage !== undefined &&
+      Number.isFinite(Number(attendancePercentage));
+
+    const attendance = hasAttendanceScore
+      ? Number(attendancePercentage)
+      : null;
 
     /*
-     * AUMNex calculates the authoritative numbers.
-     *
-     * Academic score may be unavailable.
-     * Missing academic data must NOT be treated as 0%.
+     * Academic score may also be unavailable.
      */
-
-    const attendance = Number(attendancePercentage);
-
     const hasAcademicScore =
       academicScore !== null &&
       academicScore !== undefined &&
@@ -56,15 +55,19 @@ export async function POST(request) {
       ? Number(academicScore)
       : null;
 
+    /*
+     * AUMNex calculates the authoritative risk.
+     * Missing data does not count as zero.
+     */
     let riskLevel = "LOW";
 
     if (
-      attendance < 60 ||
+      (attendance !== null && attendance < 60) ||
       (academic !== null && academic < 50)
     ) {
       riskLevel = "HIGH";
     } else if (
-      attendance < 75 ||
+      (attendance !== null && attendance < 75) ||
       (academic !== null && academic < 65)
     ) {
       riskLevel = "MEDIUM";
@@ -72,15 +75,24 @@ export async function POST(request) {
 
     const studentContext = {
       studentName,
+
       attendancePercentage: attendance,
+
+      attendanceDataAvailable: hasAttendanceScore,
+
       academicScore: academic,
+
       academicDataAvailable: hasAcademicScore,
+
       recentAttendance:
         recentAttendance || "Not available",
+
       weakestSubject:
         weakestSubject || "Not available",
+
       weakestSubjectAttendance:
         weakestSubjectAttendance ?? "Not available",
+
       calculatedRiskLevel: riskLevel,
     };
 
@@ -93,16 +105,26 @@ Analyze the verified student information below.
 ${JSON.stringify(studentContext, null, 2)}
 
 Rules:
+
 1. Never invent facts.
 2. Never change supplied numerical values.
 3. AUMNex calculates the authoritative risk level.
-4. Missing academic data means the academic score is unavailable,
-   NOT zero.
-5. Do not claim a student is academically weak when academic data
-   is unavailable.
-6. Focus on attendance when academic data is unavailable.
-7. Give practical, concise recommendations.
-8. Do not provide medical or high-stakes advice.
+4. Missing academic data means unavailable, NOT zero.
+5. Missing attendance data means unavailable, NOT zero.
+6. Never describe unavailable attendance as 0%.
+7. Never claim a student has poor attendance when attendance data is unavailable.
+8. Never claim a student is academically weak when academic data is unavailable.
+9. Use only the metrics actually provided.
+10. Give practical, concise recommendations.
+11. Do not provide medical or high-stakes advice.
+
+When attendanceDataAvailable is false:
+- Explicitly say attendance data is unavailable.
+- Do not calculate or imply an attendance percentage.
+
+When academicDataAvailable is false:
+- Explicitly say academic data is unavailable.
+- Do not calculate or imply an academic percentage.
 `;
 
     const response = await ai.models.generateContent({
@@ -117,15 +139,18 @@ Rules:
             riskLevel: {
               type: Type.STRING,
             },
+
             summary: {
               type: Type.STRING,
             },
+
             concerns: {
               type: Type.ARRAY,
               items: {
                 type: Type.STRING,
               },
             },
+
             recommendations: {
               type: Type.ARRAY,
               items: {
@@ -133,6 +158,7 @@ Rules:
               },
             },
           },
+
           required: [
             "riskLevel",
             "summary",
@@ -146,7 +172,9 @@ Rules:
     const rawText = response.text?.trim();
 
     if (!rawText) {
-      throw new Error("Gemini returned an empty response.");
+      throw new Error(
+        "Gemini returned an empty response."
+      );
     }
 
     let aiResult;
@@ -158,12 +186,15 @@ Rules:
         "AI JSON parse error:",
         parseError
       );
+
       console.error(
         "Raw Gemini response:",
         rawText
       );
 
-      throw new Error("Invalid AI response format.");
+      throw new Error(
+        "Invalid AI response format."
+      );
     }
 
     /*
@@ -175,22 +206,31 @@ Rules:
     return NextResponse.json(
       {
         success: true,
+
         data: {
           ...aiResult,
+
           student: studentName,
+
           calculatedRiskLevel: riskLevel,
+
           attendancePercentage: attendance,
+
           academicScore: academic,
         },
       },
       { status: 200 }
     );
   } catch (error) {
-    console.error("AUMNex AI API error:", error);
+    console.error(
+      "AUMNex AI API error:",
+      error
+    );
 
     return NextResponse.json(
       {
         success: false,
+
         message:
           error?.message ||
           "AUMNex AI request failed.",
