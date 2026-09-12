@@ -1,30 +1,41 @@
 {
-  "student001": {
-    "studentName": "Kunal Vijay Varal",
-    "semester": "Semester 4",
-    "sgpa": 9.12,
-    "cgpa": 8.95,
+  "RNMs8KTflWSGzVpZGDXbr8v7Fmy1": {
     "_subcollections": {
-      "subjects": {
-        "java": {
-          "subject": "Java Programming",
-          "marks": 89,
-          "grade": "A+"
-        },
-        "dbms": {
-          "subject": "Database Management",
-          "marks": 92,
-          "grade": "O"
-        },
-        "os": {
-          "subject": "Operating Systems",
-          "marks": 85,
-          "grade": "A"
-        },
-        "cn": {
-          "subject": "Computer Networks",
-          "marks": 88,
-          "grade": "A+"
+      "semesters": {
+        "Semester4": {
+          "studentName": "Kunal Vijay Varal",
+          "rollNo": "22CS101",
+          "department": "Computer Engineering",
+          "semester": "Semester 4",
+          "sgpa": 9.12,
+          "cgpa": 8.95,
+          "percentage": 89.5,
+          "failedSubjects": 0,
+          "status": "PASS",
+          "_subcollections": {
+            "subjects": {
+              "java": {
+                "subject": "Java Programming",
+                "marks": 89,
+                "grade": "A+"
+              },
+              "dbms": {
+                "subject": "Database Management",
+                "marks": 92,
+                "grade": "O"
+              },
+              "os": {
+                "subject": "Operating Systems",
+                "marks": 85,
+                "grade": "A"
+              },
+              "cn": {
+                "subject": "Computer Networks",
+                "marks": 88,
+                "grade": "A+"
+              }
+            }
+          }
         }
       }
     }
