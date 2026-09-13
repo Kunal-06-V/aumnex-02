@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { doc, getDoc, collection, getDocs } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import {
   CalendarDays,
@@ -21,20 +22,27 @@ export default function StudentTimetable() {
   const [days, setDays] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchTimetable();
-  }, []);
-
-  async function fetchTimetable() {
-    try {
-      const user = auth.currentUser;
-
-      console.log("User:", user);
-
-      if (!user) {
-        console.log("No user logged in");
-        return;
+ useEffect(() => {
+  const unsubscribe = onAuthStateChanged(
+    auth,
+    (user) => {
+      if (user) {
+        fetchTimetable(user);
+      } else {
+        setSemester(null);
+        setDays([]);
+        setLoading(false);
       }
+    }
+  );
+
+  return () => unsubscribe();
+}, []);
+
+ async function fetchTimetable(user) {
+  try {
+    console.log("User:", user);
+
       const studentRef = doc(
         db,
         "students",

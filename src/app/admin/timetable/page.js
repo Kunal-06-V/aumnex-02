@@ -64,7 +64,7 @@ const [rooms, setRooms] = useState([]);
   const ref = doc(
   db,
   "timetable",
-  `${selectedSemester}_${selectedDivision}`,
+  selectedSemester,
   "days",
   day
 );
@@ -136,29 +136,84 @@ const [rooms, setRooms] = useState([]);
   }
 
   async function saveDay() {
-    try {
-      setSaving(true);
+  try {
+    setSaving(true);
 
-     const ref = doc(
-  db,
-  "timetable",
-  `${selectedSemester}_${selectedDivision}`,
-  "days",
-  selectedDay
-);
+    const dayData = data[selectedDay] || {};
 
-      await setDoc(ref, data[selectedDay], {
-  merge: true,
-});
+    for (let index = 0; index < periods.length; index++) {
+      const period = periods[index];
+      const lecture = dayData[period] || {};
 
-      toast.success("Timetable updated successfully.");
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to save timetable.");
-    } finally {
-      setSaving(false);
+      const type = lecture.type || "Theory";
+      const periodNumber = index + 1;
+
+      // Breaks are allowed to have empty faculty and room.
+      if (type === "Break") {
+        if (!lecture.time?.trim()) {
+          toast.error(
+            `Please enter the time for Period ${periodNumber}.`
+          );
+          setSaving(false);
+          return;
+        }
+
+        continue;
+      }
+
+      if (!lecture.subject?.trim()) {
+        toast.error(
+          `Please select a subject for Period ${periodNumber}.`
+        );
+        setSaving(false);
+        return;
+      }
+
+      if (!lecture.time?.trim()) {
+        toast.error(
+          `Please enter the time for Period ${periodNumber}.`
+        );
+        setSaving(false);
+        return;
+      }
+
+      if (!lecture.faculty?.trim()) {
+        toast.error(
+          `Please select a faculty member for Period ${periodNumber}.`
+        );
+        setSaving(false);
+        return;
+      }
+
+      if (!lecture.room?.trim()) {
+        toast.error(
+          `Please select a room for Period ${periodNumber}.`
+        );
+        setSaving(false);
+        return;
+      }
     }
+
+    const ref = doc(
+      db,
+      "timetable",
+      selectedSemester,
+      "days",
+      selectedDay
+    );
+
+    await setDoc(ref, dayData, {
+      merge: true,
+    });
+
+    toast.success("Timetable updated successfully.");
+  } catch (err) {
+    console.error(err);
+    toast.error("Failed to save timetable.");
+  } finally {
+    setSaving(false);
   }
+}
 
   if (loading) {
   return (
@@ -271,19 +326,37 @@ const [rooms, setRooms] = useState([]);
 
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-4">                  <input
-                    type="text"
-                    placeholder="Subject"
-                    value={lecture.subject || ""}
-                    onChange={(e) =>
-                      handleChange(
-                        period,
-                        "subject",
-                        e.target.value
-                      )
-                    }
-                    className="border rounded-xl p-3"
-                  />
+                <div className="grid md:grid-cols-2 gap-4">     
+                 <select
+  value={lecture.subject || ""}
+  onChange={(e) =>
+    handleChange(
+      period,
+      "subject",
+      e.target.value
+    )
+  }
+  className="border rounded-xl p-3"
+>
+  <option value="">Select Subject</option>
+
+  {subjects.map((subject) => (
+    <option
+      key={subject.id}
+      value={
+        subject.name ||
+        subject.subject ||
+        subject.title ||
+        ""
+      }
+    >
+      {subject.name ||
+        subject.subject ||
+        subject.title ||
+        "Unnamed Subject"}
+    </option>
+  ))}
+</select>
 
                   <input
                     type="text"
@@ -299,33 +372,67 @@ const [rooms, setRooms] = useState([]);
                     className="border rounded-xl p-3"
                   />
 
-                  <input
-                    type="text"
-                    placeholder="Faculty"
-                    value={lecture.faculty || ""}
-                    onChange={(e) =>
-                      handleChange(
-                        period,
-                        "faculty",
-                        e.target.value
-                      )
-                    }
-                    className="border rounded-xl p-3"
-                  />
+                 <select
+  value={lecture.faculty || ""}
+  onChange={(e) =>
+    handleChange(
+      period,
+      "faculty",
+      e.target.value
+    )
+  }
+  className="border rounded-xl p-3"
+>
+  <option value="">Select Faculty</option>
 
-                  <input
-                    type="text"
-                    placeholder="Room"
-                    value={lecture.room || ""}
-                    onChange={(e) =>
-                      handleChange(
-                        period,
-                        "room",
-                        e.target.value
-                      )
-                    }
-                    className="border rounded-xl p-3"
-                  />
+  {faculties.map((faculty) => (
+    <option
+      key={faculty.id}
+      value={
+        faculty.name ||
+        faculty.facultyName ||
+        faculty.fullName ||
+        faculty.id
+      }
+    >
+      {faculty.name ||
+        faculty.facultyName ||
+        faculty.fullName ||
+        faculty.id}
+    </option>
+  ))}
+</select>
+
+                 <select
+  value={lecture.room || ""}
+  onChange={(e) =>
+    handleChange(
+      period,
+      "room",
+      e.target.value
+    )
+  }
+  className="border rounded-xl p-3"
+>
+  <option value="">Select Room</option>
+
+  {rooms.map((room) => (
+    <option
+      key={room.id}
+      value={
+        room.name ||
+        room.roomName ||
+        room.number ||
+        room.id
+      }
+    >
+      {room.name ||
+        room.roomName ||
+        room.number ||
+        room.id}
+    </option>
+  ))}
+</select>
 
                   <select
                     value={lecture.type || "Theory"}
