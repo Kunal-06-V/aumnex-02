@@ -52,6 +52,11 @@ const menuItems = [
   href: "/student/Ai",
   icon: Brain,
 },
+{
+  title: "Ask AUMNex",
+  href: "/student/ask-aumnex",
+  icon: Brain,
+},
 
 {
   title: "SOS",
