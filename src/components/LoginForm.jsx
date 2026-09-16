@@ -52,159 +52,203 @@ export default function LoginForm() {
   // ============================================================
   // LOGIN
   // ============================================================
+async function handleLogin(e) {
+  e.preventDefault();
 
-  async function handleLogin(e) {
-    e.preventDefault();
+  if (loading) return;
 
-    if (loading) return;
+  const cleanEmail = email.trim();
 
-    const cleanEmail = email.trim();
+  if (!cleanEmail || !password) {
+    toast.error("Please enter email and password.");
+    return;
+  }
 
-    if (!cleanEmail || !password) {
-      toast.error("Please enter email and password.");
-      return;
-    }
+  setLoading(true);
 
-    setLoading(true);
+  try {
+    console.log("LOGIN STEP 1: Starting Firebase login");
 
-    try {
-      console.log("LOGIN STEP 1: Starting Firebase login");
-
-      const userCredential = await signInWithEmailAndPassword(
+    const userCredential =
+      await signInWithEmailAndPassword(
         auth,
         cleanEmail,
         password
       );
 
-      const user = userCredential.user;
+    const user = userCredential.user;
 
-      console.log("LOGIN STEP 2: Firebase login successful");
-      console.log("UID:", user.uid);
-      console.log("Email:", user.email);
+    console.log(
+      "LOGIN STEP 2: Firebase login successful"
+    );
 
-      // ========================================================
-      // CHECK ADMIN
-      // ========================================================
+    console.log("UID:", user.uid);
+    console.log("Email:", user.email);
 
-      console.log("LOGIN STEP 3: Checking admin document");
+    // ========================================================
+    // CHECK ADMIN
+    // ========================================================
 
-      const adminQuery = query(
-        collection(db, "admin"),
-        where("uid", "==", user.uid)
-      );
+    console.log(
+      "LOGIN STEP 3: Checking admin document"
+    );
 
-      const adminSnapshot = await getDocs(adminQuery);
+    const adminQuery = query(
+      collection(db, "admin"),
+      where("uid", "==", user.uid)
+    );
 
-      console.log(
-        "Admin document exists:",
-        !adminSnapshot.empty
-      );
+    const adminSnapshot =
+      await getDocs(adminQuery);
 
-      if (!adminSnapshot.empty) {
-        const adminData = adminSnapshot.docs[0].data();
+    console.log(
+      "Admin document exists:",
+      !adminSnapshot.empty
+    );
 
-        console.log(
-          "LOGIN STEP 4: Admin document loaded",
-          adminData
-        );
-
-        toast.success("Welcome Admin!");
-
-        router.push("/admin/dashboard");
-        return;
-      }
-
-      // ========================================================
-      // CHECK STUDENT
-      // ========================================================
-
-      console.log("LOGIN STEP 5: Checking student document");
-
-      const studentRef = doc(db, "students", user.uid);
-      const studentSnap = await getDoc(studentRef);
+    if (!adminSnapshot.empty) {
+      const adminData =
+        adminSnapshot.docs[0].data();
 
       console.log(
-        "Student document exists:",
-        studentSnap.exists()
+        "LOGIN STEP 4: Admin document loaded",
+        adminData
       );
 
-      if (studentSnap.exists()) {
-        const studentData = studentSnap.data();
+      toast.success("Welcome Admin!");
 
-        console.log(
-          "LOGIN STEP 6: Student document loaded",
-          studentData
-        );
+      router.push("/admin/dashboard");
 
-        setStudent(studentData);
-
-        toast.success(
-          `Welcome ${studentData.name}!`
-        );
-
-        console.log(
-          "LOGIN STEP 7: Redirecting to student dashboard"
-        );
-
-        router.push("/student/dashboard");
-
-        return;
-      }
-
-      toast.error(
-        "Firebase login succeeded, but no student/admin record was found."
-      );
-    } catch (error) {
-      console.error("========== LOGIN ERROR ==========");
-      console.error("Code:", error.code);
-      console.error("Message:", error.message);
-      console.error("Full error:", error);
-      console.error("=================================");
-
-      switch (error.code) {
-        case "auth/invalid-credential":
-          toast.error("Invalid email or password.");
-          break;
-
-        case "auth/user-not-found":
-          toast.error("User account not found.");
-          break;
-
-        case "auth/wrong-password":
-          toast.error("Incorrect password.");
-          break;
-
-        case "auth/invalid-email":
-          toast.error("Invalid email address.");
-          break;
-
-        case "auth/too-many-requests":
-          toast.error(
-            "Too many login attempts. Try again later."
-          );
-          break;
-
-        case "auth/network-request-failed":
-          toast.error(
-            "Network error. Check the phone's internet connection."
-          );
-          break;
-
-        case "auth/operation-not-allowed":
-          toast.error(
-            "Email/password login is disabled in Firebase."
-          );
-          break;
-
-        default:
-          toast.error(
-            `Login failed: ${error.code || error.message}`
-          );
-      }
-    } finally {
-      setLoading(false);
+      return;
     }
+
+    // ========================================================
+    // CHECK STUDENT
+    // ========================================================
+
+    console.log(
+      "LOGIN STEP 5: Checking student document"
+    );
+
+    const studentRef = doc(
+      db,
+      "students",
+      user.uid
+    );
+
+    const studentSnap =
+      await getDoc(studentRef);
+
+    console.log(
+      "Student document exists:",
+      studentSnap.exists()
+    );
+
+    if (studentSnap.exists()) {
+      const studentData =
+        studentSnap.data();
+
+      console.log(
+        "LOGIN STEP 6: Student document loaded",
+        studentData
+      );
+
+      setStudent(studentData);
+
+      toast.success(
+        `Welcome ${studentData.name}!`
+      );
+
+      console.log(
+        "LOGIN STEP 7: Redirecting to student dashboard"
+      );
+
+      router.push("/student/dashboard");
+
+      return;
+    }
+
+    toast.error(
+      "Firebase login succeeded, but no student/admin record was found."
+    );
+  } catch (error) {
+    console.error(
+      "========== LOGIN ERROR =========="
+    );
+
+    console.error(
+      "Code:",
+      error.code
+    );
+
+    console.error(
+      "Message:",
+      error.message
+    );
+
+    console.error(
+      "Full error:",
+      error
+    );
+
+    console.error(
+      "================================="
+    );
+
+    switch (error.code) {
+      case "auth/invalid-credential":
+        toast.error(
+          "Invalid email or password."
+        );
+        break;
+
+      case "auth/user-not-found":
+        toast.error(
+          "User account not found."
+        );
+        break;
+
+      case "auth/wrong-password":
+        toast.error(
+          "Incorrect password."
+        );
+        break;
+
+      case "auth/invalid-email":
+        toast.error(
+          "Invalid email address."
+        );
+        break;
+
+      case "auth/too-many-requests":
+        toast.error(
+          "Too many login attempts. Try again later."
+        );
+        break;
+
+      case "auth/network-request-failed":
+        toast.error(
+          "Network error. Check the internet connection."
+        );
+        break;
+
+      case "auth/operation-not-allowed":
+        toast.error(
+          "Email/password login is disabled in Firebase."
+        );
+        break;
+
+      default:
+        toast.error(
+          `Login failed: ${
+            error.code || error.message
+          }`
+        );
+    }
+  } finally {
+    setLoading(false);
   }
+}
 
   // ============================================================
   // REGISTER
@@ -903,4 +947,4 @@ export default function LoginForm() {
 
     </div>
   );
-}
+    }

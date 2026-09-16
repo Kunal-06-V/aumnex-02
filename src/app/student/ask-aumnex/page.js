@@ -7,6 +7,8 @@ import {
   doc,
   getDoc,
   getDocs,
+  query,
+  where,
 } from "firebase/firestore";
 
 import { onAuthStateChanged } from "firebase/auth";
@@ -120,75 +122,7 @@ export default function AskAumnexPage() {
         }
       }
 
-      // --------------------------------
-      // SUBJECT RESULTS
-      // --------------------------------
-
-      let subjects = [];
-
-      // Primary path:
-      // results/{uid}/semesters/{semester}/subjects
-      if (semesterId) {
-        const semesterSubjectsSnapshot =
-          await getDocs(
-            collection(
-              db,
-              "results",
-              uid,
-              "semesters",
-              semesterId,
-              "subjects"
-            )
-          );
-
-        subjects =
-          semesterSubjectsSnapshot.docs.map(
-            (subjectDoc) => ({
-              id: subjectDoc.id,
-              ...subjectDoc.data(),
-            })
-          );
-      }
-
-      // Fallback path:
-      // results/{uid}/subjects
-      if (subjects.length === 0) {
-        const rootSubjectsSnapshot =
-          await getDocs(
-            collection(
-              db,
-              "results",
-              uid,
-              "subjects"
-            )
-          );
-
-        subjects =
-          rootSubjectsSnapshot.docs.map(
-            (subjectDoc) => ({
-              id: subjectDoc.id,
-              ...subjectDoc.data(),
-            })
-          );
-      }
-
-      if (academicResult) {
-        academicResult = {
-          ...academicResult,
-          subjects,
-        };
-      } else if (subjects.length > 0) {
-        academicResult = {
-          subjects,
-        };
-      }
-
       setAcademicData(academicResult);
-
-      console.log(
-        "Ask AUMNex subjects loaded:",
-        subjects
-      );
 
       // --------------------------------
       // ATTENDANCE
@@ -202,105 +136,112 @@ export default function AskAumnexPage() {
         subjects: {},
       };
 
-      const sessionsSnapshot =
-        await getDocs(
+      if (
+        student.semester &&
+        student.division
+      ) {
+        const sessionsQuery = query(
           collection(
             db,
             "attendanceSessions"
+          ),
+          where(
+            "semester",
+            "==",
+            student.semester
+          ),
+          where(
+            "division",
+            "==",
+            student.division
           )
         );
 
-      for (const sessionDoc of sessionsSnapshot.docs) {
-        if (sessionDoc.id === "current") {
-          continue;
-        }
+        const sessionsSnapshot =
+          await getDocs(sessionsQuery);
 
-        const sessionData =
-          sessionDoc.data();
-
-        const semesterMatches =
-          !sessionData.semester ||
-          sessionData.semester ===
-            student.semester;
-
-        const divisionMatches =
-          !sessionData.division ||
-          sessionData.division ===
-            student.division;
-
-        if (
-          !semesterMatches ||
-          !divisionMatches
+        for (
+          const sessionDoc of
+            sessionsSnapshot.docs
         ) {
-          continue;
-        }
+          // "current" is temporary live NFC state.
+          // Never use it for historical attendance.
+          if (sessionDoc.id === "current") {
+            continue;
+          }
 
-        const studentAttendanceRef =
-          collection(
-            db,
-            "attendanceSessions",
-            sessionDoc.id,
-            "students"
-          );
+          const sessionData =
+            sessionDoc.data();
 
-        const studentAttendanceSnapshot =
-          await getDocs(
-            studentAttendanceRef
-          );
+          // Read ONLY this student's attendance
+          // document for this session.
+          const studentAttendanceRef =
+            doc(
+              db,
+              "attendanceSessions",
+              sessionDoc.id,
+              "students",
+              uid
+            );
 
-        const studentRecord =
-          studentAttendanceSnapshot.docs.find(
-            (recordDoc) => {
-              const record =
-                recordDoc.data();
+          const studentAttendanceSnap =
+            await getDoc(
+              studentAttendanceRef
+            );
 
-              return (
-                record.uid === uid ||
-                recordDoc.id === uid ||
-                record.rollNo ===
-                  student.rollNo
-              );
-            }
-          );
+          if (
+            !studentAttendanceSnap.exists()
+          ) {
+            continue;
+          }
 
-        if (!studentRecord) {
-          continue;
-        }
+          const record =
+            studentAttendanceSnap.data();
 
-        const record =
-          studentRecord.data();
+          // Extra identity validation.
+          if (
+            record.uid &&
+            record.uid !== uid
+          ) {
+            continue;
+          }
 
-        const status = record.status;
+          const status = record.status;
 
-        attendance.total++;
+          attendance.total++;
 
-        if (status === "Present") {
-          attendance.present++;
-        } else if (status === "Absent") {
-          attendance.absent++;
-        } else if (status === "Leave") {
-          attendance.leave++;
-        }
+          if (status === "Present") {
+            attendance.present++;
+          } else if (
+            status === "Absent"
+          ) {
+            attendance.absent++;
+          } else if (
+            status === "Leave"
+          ) {
+            attendance.leave++;
+          }
 
-        const subject =
-          sessionData.subject?.trim() ||
-          "Unknown";
+          const subject =
+            sessionData.subject?.trim() ||
+            "Unknown";
 
-        if (!attendance.subjects[subject]) {
-          attendance.subjects[subject] = {
-            present: 0,
-            total: 0,
-          };
-        }
+          if (!attendance.subjects[subject]) {
+            attendance.subjects[subject] = {
+              present: 0,
+              total: 0,
+            };
+          }
 
-        attendance.subjects[
-          subject
-        ].total++;
-
-        if (status === "Present") {
           attendance.subjects[
             subject
-          ].present++;
+          ].total++;
+
+          if (status === "Present") {
+            attendance.subjects[
+              subject
+            ].present++;
+          }
         }
       }
 
@@ -339,8 +280,7 @@ export default function AskAumnexPage() {
         absent: attendance.absent,
         leave: attendance.leave,
         total: attendance.total,
-        percentage:
-          attendancePercentage,
+        percentage: attendancePercentage,
         subjects: subjectAttendance,
       });
 
@@ -445,11 +385,14 @@ export default function AskAumnexPage() {
                 studentData.department || "",
             },
 
-            attendance: attendanceData,
+            attendance:
+              attendanceData,
 
-            academic: academicData,
+            academic:
+              academicData,
 
-            timetable: timetableData,
+            timetable:
+              timetableData,
           }),
         });
 
@@ -500,6 +443,7 @@ export default function AskAumnexPage() {
             size={22}
             className="animate-spin"
           />
+
           Loading Ask AUMNex...
         </div>
       </div>
@@ -518,8 +462,11 @@ export default function AskAumnexPage() {
 
   return (
     <div className="space-y-8">
+
+      {/* Header */}
       <div className="bg-linear-to-r from-slate-900 to-blue-900 text-white rounded-3xl p-8 shadow-xl">
         <div className="flex items-start gap-4">
+
           <div className="bg-white/10 p-3 rounded-2xl">
             <Brain size={34} />
           </div>
@@ -539,9 +486,11 @@ export default function AskAumnexPage() {
               data.
             </p>
           </div>
+
         </div>
       </div>
 
+      {/* Quick Questions */}
       <div className="bg-white rounded-3xl shadow-md p-6">
         <h2 className="text-xl font-bold text-slate-800 mb-4">
           Try asking
@@ -569,7 +518,9 @@ export default function AskAumnexPage() {
         </div>
       </div>
 
+      {/* Ask Box */}
       <div className="bg-white rounded-3xl shadow-md p-6">
+
         <label
           htmlFor="ask-aumnex-question"
           className="block font-semibold text-slate-800 mb-3"
@@ -593,6 +544,7 @@ export default function AskAumnexPage() {
         />
 
         <div className="flex justify-end mt-4">
+
           <button
             type="button"
             onClick={askAumnex}
@@ -617,18 +569,23 @@ export default function AskAumnexPage() {
               </>
             )}
           </button>
+
         </div>
       </div>
 
+      {/* Error */}
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-4">
           {error}
         </div>
       )}
 
+      {/* Answer */}
       {answer && (
         <div className="bg-white rounded-3xl shadow-md p-6">
+
           <div className="flex items-center gap-3 mb-5">
+
             <div className="bg-blue-100 p-3 rounded-xl">
               <Brain
                 size={22}
@@ -645,6 +602,7 @@ export default function AskAumnexPage() {
                 Based on your verified AUMNex data
               </p>
             </div>
+
           </div>
 
           <div className="bg-blue-50 rounded-2xl p-5">
@@ -655,6 +613,7 @@ export default function AskAumnexPage() {
 
           {answer.dataUsed?.length > 0 && (
             <div className="mt-5">
+
               <p className="font-semibold text-slate-800 mb-2">
                 Data used
               </p>
@@ -671,14 +630,19 @@ export default function AskAumnexPage() {
                   )
                 )}
               </div>
+
             </div>
           )}
+
         </div>
       )}
 
+      {/* Data Status */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+
         <div className="bg-white rounded-2xl shadow-md p-5">
           <div className="flex items-center gap-3">
+
             <User className="text-blue-600" />
 
             <div>
@@ -691,11 +655,13 @@ export default function AskAumnexPage() {
                   "Unavailable"}
               </p>
             </div>
+
           </div>
         </div>
 
         <div className="bg-white rounded-2xl shadow-md p-5">
           <div className="flex items-center gap-3">
+
             <BookOpen className="text-green-600" />
 
             <div>
@@ -705,17 +671,17 @@ export default function AskAumnexPage() {
 
               <p className="font-semibold">
                 {academicData
-                  ? academicData.subjects?.length
-                    ? `${academicData.subjects.length} Subjects Available`
-                    : "Available"
+                  ? "Available"
                   : "Unavailable"}
               </p>
             </div>
+
           </div>
         </div>
 
         <div className="bg-white rounded-2xl shadow-md p-5">
           <div className="flex items-center gap-3">
+
             <CalendarDays className="text-purple-600" />
 
             <div>
@@ -729,9 +695,12 @@ export default function AskAumnexPage() {
                   : "Unavailable"}
               </p>
             </div>
+
           </div>
         </div>
+
       </div>
+
     </div>
   );
 }

@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Smartphone, Brain } from "lucide-react";
+
 import {
+  Smartphone,
+  Brain,
   LayoutDashboard,
   Users,
   CalendarCheck,
@@ -12,6 +14,7 @@ import {
   CalendarDays,
   Bell,
   BarChart3,
+  ShieldCheck,
   LogOut,
 } from "lucide-react";
 
@@ -27,10 +30,10 @@ const menuItems = [
     icon: Users,
   },
   {
-  title: "NFC Reader",
-  href: "/admin/nfc-reader",
-  icon: Smartphone,
-},
+    title: "NFC Reader",
+    href: "/admin/nfc-reader",
+    icon: Smartphone,
+  },
   {
     title: "Attendance",
     href: "/admin/attendance",
@@ -62,22 +65,24 @@ const menuItems = [
     icon: BarChart3,
   },
   {
-  title: "Intelligence",
-  href: "/admin/Ai",
-  icon: Brain,
-},
+    title: "Intelligence",
+    href: "/admin/Ai",
+    icon: Brain,
+  },
+  {
+    title: "Data Integrity",
+    href: "/admin/audit",
+    icon: ShieldCheck,
+  },
 ];
 
 export default function AdminSidebar() {
-
   const pathname = usePathname();
 
   return (
-
     <aside className="fixed left-0 top-0 h-screen w-64 bg-slate-900 text-white shadow-xl">
 
       <div className="p-6 border-b border-slate-700">
-
         <h1 className="text-3xl font-bold text-blue-400">
           AUMNex
         </h1>
@@ -85,19 +90,14 @@ export default function AdminSidebar() {
         <p className="text-gray-400 text-sm mt-2">
           Admin Panel
         </p>
-
       </div>
 
       <nav className="p-4 space-y-2">
-
         {menuItems.map((item) => {
-
           const Icon = item.icon;
-
           const active = pathname === item.href;
 
           return (
-
             <Link
               key={item.title}
               href={item.href}
@@ -107,22 +107,17 @@ export default function AdminSidebar() {
                   : "text-gray-300 hover:bg-slate-800 hover:text-white"
               }`}
             >
-
               <Icon size={20} />
 
               <span className="font-medium">
                 {item.title}
               </span>
-
             </Link>
-
           );
-
         })}
-              </nav>
+      </nav>
 
       <div className="absolute bottom-0 left-0 w-full p-4 border-t border-slate-700">
-
         <button
           onClick={() => {
             localStorage.removeItem("admin");
@@ -135,13 +130,9 @@ export default function AdminSidebar() {
           <span className="font-medium">
             Logout
           </span>
-
         </button>
-
       </div>
 
     </aside>
-
   );
-
 }
