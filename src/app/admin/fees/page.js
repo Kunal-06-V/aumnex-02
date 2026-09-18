@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+
 import {
   collection,
   getDocs,
@@ -20,10 +21,12 @@ import {
   X,
   IndianRupee,
 } from "lucide-react";
+
 import toast from "react-hot-toast";
 
 const emptyForm = {
   id: "",
+  studentUid: "",
   studentName: "",
   rollNo: "",
   department: "",
@@ -36,7 +39,6 @@ const emptyForm = {
 };
 
 export default function FeesPage() {
-
   const [fees, setFees] = useState([]);
   const [students, setStudents] = useState([]);
   const [filtered, setFiltered] = useState([]);
@@ -47,75 +49,84 @@ export default function FeesPage() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(false);
 
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState(
+    emptyForm
+  );
 
   useEffect(() => {
     fetchStudents();
     fetchFees();
   }, []);
-  useEffect(() => {
 
+  useEffect(() => {
     const text = search.toLowerCase();
 
     setFiltered(
       fees.filter(
         (item) =>
-          item.studentName?.toLowerCase().includes(text) ||
-          item.rollNo?.toLowerCase().includes(text)
+          item.studentName
+            ?.toLowerCase()
+            .includes(text) ||
+          item.rollNo
+            ?.toLowerCase()
+            .includes(text)
       )
     );
-
   }, [search, fees]);
 
   async function fetchFees() {
-
     setLoading(true);
 
     try {
-
       const snapshot = await getDocs(
         collection(db, "fees")
       );
 
-      const data = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      const data = snapshot.docs.map(
+        (feeDoc) => ({
+          id: feeDoc.id,
+          ...feeDoc.data(),
+        })
+      );
 
       setFees(data);
       setFiltered(data);
-
     } catch (err) {
       console.error(err);
+      toast.error(
+        "Failed to load fee records."
+      );
     }
 
     setLoading(false);
-
   }
+
   async function fetchStudents() {
-
     try {
-
       const snapshot = await getDocs(
         collection(db, "students")
       );
 
-      const data = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      const data = snapshot.docs.map(
+        (studentDoc) => ({
+          id: studentDoc.id,
+          ...studentDoc.data(),
+        })
+      );
 
-      data.sort((a, b) => a.name.localeCompare(b.name));
+      data.sort((a, b) =>
+        (a.name || "").localeCompare(
+          b.name || ""
+        )
+      );
 
       setStudents(data);
-
     } catch (err) {
-
       console.error(err);
-      toast.error("Failed to load students.");
-
+      toast.error(
+        "Failed to load students."
+      );
     }
-
   }
 
   function resetForm() {
@@ -123,161 +134,240 @@ export default function FeesPage() {
     setShowForm(false);
     setForm(emptyForm);
   }
-  function selectStudent(studentId) {
 
+  function selectStudent(studentId) {
     const student = students.find(
       (item) => item.id === studentId
     );
 
     if (!student) return;
 
+    const studentUid =
+      student.uid || student.id;
+
     setForm((prev) => ({
-
       ...prev,
-
       id: student.id,
-
-      studentName: student.name,
-
-      rollNo: student.rollNo,
-
-      department: student.department || "",
-
-      semester: student.semester || "",
-
+      studentUid,
+      studentName:
+        student.name || "",
+      rollNo:
+        student.rollNo || "",
+      department:
+        student.department || "",
+      semester:
+        student.semester || "",
     }));
-
   }
 
   async function handleSave() {
-
-    if (!form.id || !form.studentName) {
-      toast.error("Student ID and Name are required.");
+    if (
+      !form.id ||
+      !form.studentUid ||
+      !form.studentName
+    ) {
+      toast.error(
+        "Please select a valid student."
+      );
       return;
     }
 
     try {
-      const total = Number(form.totalFees);
-      const paid = Number(form.paidFees);
+      const total = Number(
+        form.totalFees
+      );
+
+      const paid = Number(
+        form.paidFees
+      );
+
       if (paid > total) {
-        toast.error("Paid fees cannot exceed total fees.");
+        toast.error(
+          "Paid fees cannot exceed total fees."
+        );
         return;
       }
 
-      const pending = total - paid;
+      const pending =
+        total - paid;
 
       const percentagePaid =
-        total > 0 ? Math.round((paid / total) * 100) : 0;
+        total > 0
+          ? Math.round(
+              (paid / total) * 100
+            )
+          : 0;
+
+      const status =
+        pending === 0
+          ? "Paid"
+          : paid === 0
+          ? "Pending"
+          : "Partial";
 
       if (editing) {
-
-        await updateDoc(doc(db, "fees", form.id), {
-          studentName: form.studentName,
-          rollNo: form.rollNo,
-          department: form.department,
-          semester: form.semester,
-          totalFees: total,
-          paidFees: paid,
-          pendingFees: pending,
-          percentagePaid,
-          status:
-            pending === 0
-              ? "Paid"
-              : paid === 0
-                ? "Pending"
-                : "Partial",
-        });
-
-        toast.success("Fees updated successfully.");
-
-      } else {
-
-        await setDoc(
-          doc(db, "fees", form.id),
+        await updateDoc(
+          doc(
+            db,
+            "fees",
+            form.id
+          ),
           {
-            ...form,
+            studentUid:
+              form.studentUid,
+            studentName:
+              form.studentName,
+            rollNo:
+              form.rollNo,
+            department:
+              form.department,
+            semester:
+              form.semester,
+            totalFees: total,
+            paidFees: paid,
             pendingFees: pending,
-            status:
-              pending === 0
-                ? "Paid"
-                : paid === 0
-                  ? "Pending"
-                  : "Partial",
             percentagePaid,
+            dueDate:
+              form.dueDate || "",
+            status,
           }
         );
 
-        toast.success("Fees record added successfully.");
+        toast.success(
+          "Fees updated successfully."
+        );
+      } else {
+        await setDoc(
+          doc(
+            db,
+            "fees",
+            form.id
+          ),
+          {
+            id: form.id,
+            studentUid:
+              form.studentUid,
+            studentName:
+              form.studentName,
+            rollNo:
+              form.rollNo,
+            department:
+              form.department,
+            semester:
+              form.semester,
+            totalFees: total,
+            paidFees: paid,
+            pendingFees: pending,
+            percentagePaid,
+            dueDate:
+              form.dueDate || "",
+            status,
+          }
+        );
 
+        toast.success(
+          "Fees record added successfully."
+        );
       }
 
       resetForm();
       fetchFees();
-
     } catch (err) {
-
       console.error(err);
-      toast.error("Failed to save fee record.");
 
+      toast.error(
+        "Failed to save fee record."
+      );
     }
-
   }
 
   async function handleDelete(id) {
-
-    if (!confirm("Delete this fees record?")) return;
+    if (
+      !confirm(
+        "Delete this fees record?"
+      )
+    ) {
+      return;
+    }
 
     try {
-
-      await deleteDoc(doc(db, "fees", id));
+      await deleteDoc(
+        doc(db, "fees", id)
+      );
 
       fetchFees();
 
+      toast.success(
+        "Fee record deleted."
+      );
     } catch (err) {
-
       console.error(err);
-      toast.error("Failed to delete fee record.");
 
+      toast.error(
+        "Failed to delete fee record."
+      );
     }
-
   }
 
   function handleEdit(item) {
+    const matchedStudent =
+      students.find(
+        (student) =>
+          student.uid ===
+            item.studentUid ||
+          student.rollNo ===
+            item.rollNo &&
+            student.name ===
+              item.studentName
+      );
+
+    const studentUid =
+      item.studentUid ||
+      matchedStudent?.uid ||
+      matchedStudent?.id ||
+      "";
 
     setEditing(true);
     setShowForm(true);
 
     setForm({
-      id: item.id,
-      studentName: item.studentName || "",
-      rollNo: item.rollNo || "",
-      department: item.department || "",
-      semester: item.semester || "",
-      totalFees: item.totalFees || "",
-      paidFees: item.paidFees || "",
-      pendingFees: item.pendingFees || "",
-      dueDate: item.dueDate || "",
-      status: item.status || "Pending",
+      id: item.id || "",
+      studentUid,
+      studentName:
+        item.studentName || "",
+      rollNo:
+        item.rollNo || "",
+      department:
+        item.department || "",
+      semester:
+        item.semester || "",
+      totalFees:
+        item.totalFees ?? "",
+      paidFees:
+        item.paidFees ?? "",
+      pendingFees:
+        item.pendingFees ?? "",
+      dueDate:
+        item.dueDate || "",
+      status:
+        item.status || "Pending",
     });
-
   }
 
   return (
-
     <div className="space-y-6">
+      {/* HEADER */}
 
       <div className="flex justify-between items-center">
-
         <div>
-
           <h1 className="text-3xl font-bold">
             Manage Fees
           </h1>
 
           <p className="text-gray-500">
-            Add, edit and manage student fee records
+            Add, edit and manage student fee
+            records
           </p>
-
         </div>
 
         <button
@@ -291,45 +381,67 @@ export default function FeesPage() {
           <Plus size={18} />
           Add Fees
         </button>
-
       </div>
 
+      {/* FORM */}
+
       {showForm && (
-
         <div className="bg-white rounded-2xl shadow-md p-6">
-
           <div className="flex justify-between mb-6">
-
             <h2 className="text-2xl font-bold">
-              {editing ? "Edit Fees" : "Add Fees"}
+              {editing
+                ? "Edit Fees"
+                : "Add Fees"}
             </h2>
 
-            <button onClick={resetForm}>
+            <button
+              onClick={resetForm}
+            >
               <X />
             </button>
-
           </div>
 
           <div className="grid md:grid-cols-2 gap-4">
+            {/* STUDENT */}
 
             <select
               disabled={editing}
               value={form.id}
-              onChange={(e) => selectStudent(e.target.value)}
+              onChange={(e) =>
+                selectStudent(
+                  e.target.value
+                )
+              }
               className="border rounded-xl p-3"
             >
-              <option value="">Select Student</option>
+              <option value="">
+                Select Student
+              </option>
 
-              {students.map((student) => (
-                <option
-                  key={student.id}
-                  value={student.id}
-                >
-                  {student.name} ({student.rollNo})
-                </option>
-              ))}
-
+              {students.map(
+                (student) => (
+                  <option
+                    key={student.id}
+                    value={student.id}
+                  >
+                    {student.name} (
+                    {student.rollNo})
+                  </option>
+                )
+              )}
             </select>
+
+            {/* STUDENT UID */}
+
+            <input
+              value={form.studentUid}
+              readOnly
+              placeholder="Student UID"
+              className="border rounded-xl p-3 bg-gray-100"
+            />
+
+            {/* NAME */}
+
             <input
               value={form.studentName}
               readOnly
@@ -337,48 +449,25 @@ export default function FeesPage() {
               className="border rounded-xl p-3 bg-gray-100"
             />
 
+            {/* ROLL */}
+
             <input
               value={form.rollNo}
               readOnly
               placeholder="Roll No"
               className="border rounded-xl p-3 bg-gray-100"
             />
+
+            {/* DEPARTMENT */}
+
             <input
               value={form.department}
               readOnly
               placeholder="Department"
               className="border rounded-xl p-3 bg-gray-100"
             />
-            <input
-              placeholder="Total Fees"
-              value={form.totalFees}
-              onChange={(e) =>
-                setForm({ ...form, totalFees: e.target.value })
-              }
-              className="border rounded-xl p-3"
-            />
 
-            <input
-              placeholder="Paid Fees"
-              value={form.paidFees}
-              onChange={(e) =>
-                setForm({ ...form, paidFees: e.target.value })
-              }
-              className="border rounded-xl p-3"
-            />
-
-            <input
-              value={
-                Math.max(
-                  Number(form.totalFees || 0) -
-                  Number(form.paidFees || 0),
-                  0
-                )
-              }
-              readOnly
-              placeholder="Pending Fees"
-              className="border rounded-xl p-3 bg-gray-100"
-            />
+            {/* SEMESTER */}
 
             <input
               value={form.semester}
@@ -387,29 +476,100 @@ export default function FeesPage() {
               className="border rounded-xl p-3 bg-gray-100"
             />
 
+            {/* TOTAL */}
+
+            <input
+              placeholder="Total Fees"
+              value={form.totalFees}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  totalFees:
+                    e.target.value,
+                })
+              }
+              className="border rounded-xl p-3"
+            />
+
+            {/* PAID */}
+
+            <input
+              placeholder="Paid Fees"
+              value={form.paidFees}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  paidFees:
+                    e.target.value,
+                })
+              }
+              className="border rounded-xl p-3"
+            />
+
+            {/* PENDING */}
+
+            <input
+              value={Math.max(
+                Number(
+                  form.totalFees || 0
+                ) -
+                  Number(
+                    form.paidFees || 0
+                  ),
+                0
+              )}
+              readOnly
+              placeholder="Pending Fees"
+              className="border rounded-xl p-3 bg-gray-100"
+            />
+
+            {/* DUE DATE */}
+
+            <input
+              type="text"
+              placeholder="Due Date"
+              value={form.dueDate}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  dueDate:
+                    e.target.value,
+                })
+              }
+              className="border rounded-xl p-3"
+            />
+
+            {/* STATUS */}
+
             <input
               readOnly
               value={
-                Number(form.totalFees || 0) === 0
+                Number(
+                  form.totalFees || 0
+                ) === 0
                   ? "Pending"
-                  : Number(form.totalFees) -
-                    Number(form.paidFees) ===
+                  : Number(
+                      form.totalFees
+                    ) -
+                      Number(
+                        form.paidFees
+                      ) ===
                     0
-                    ? "Paid"
-                    : "Partial"
+                  ? "Paid"
+                  : "Partial"
               }
               className="border rounded-xl p-3 bg-gray-100 md:col-span-2"
             />
-
           </div>
 
           <div className="mt-6 flex gap-3">
-
             <button
               onClick={handleSave}
               className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl"
             >
-              {editing ? "Update Fees" : "Save Fees"}
+              {editing
+                ? "Update Fees"
+                : "Save Fees"}
             </button>
 
             <button
@@ -418,17 +578,14 @@ export default function FeesPage() {
             >
               Cancel
             </button>
-
           </div>
-
         </div>
-
       )}
 
+      {/* SEARCH + TABLE */}
+
       <div className="bg-white rounded-2xl shadow-md p-5">
-
         <div className="relative mb-6">
-
           <Search
             size={18}
             className="absolute left-3 top-3 text-gray-400"
@@ -438,138 +595,156 @@ export default function FeesPage() {
             type="text"
             placeholder="Search by Student Name or Roll No"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) =>
+              setSearch(
+                e.target.value
+              )
+            }
             className="w-full border rounded-xl pl-10 pr-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
           />
-
         </div>
 
         {loading ? (
-
           <p className="text-center py-10">
             Loading Fees...
           </p>
-
         ) : filtered.length === 0 ? (
-
           <div className="text-center py-10">
-
             <IndianRupee
               size={48}
               className="mx-auto text-gray-400 mb-4"
             />
 
-            <p>No Fee Records Found.</p>
-
+            <p>
+              No Fee Records Found.
+            </p>
           </div>
-
         ) : (
-
           <div className="overflow-x-auto">
-
             <table className="w-full">
-
               <thead className="bg-gray-100">
-
                 <tr>
-                  <th className="text-left p-4">Student</th>
-                  <th className="text-left p-4">Roll No</th>
-                  <th className="text-left p-4">Semester</th>
-                  <th className="text-left p-4">Total</th>
-                  <th className="text-left p-4">Paid</th>
-                  <th className="text-left p-4">Pending</th>
-                  <th className="text-left p-4">Status</th>
-                  <th className="text-center p-4">Actions</th>
-                </tr>
+                  <th className="text-left p-4">
+                    Student
+                  </th>
 
+                  <th className="text-left p-4">
+                    Roll No
+                  </th>
+
+                  <th className="text-left p-4">
+                    Semester
+                  </th>
+
+                  <th className="text-left p-4">
+                    Total
+                  </th>
+
+                  <th className="text-left p-4">
+                    Paid
+                  </th>
+
+                  <th className="text-left p-4">
+                    Pending
+                  </th>
+
+                  <th className="text-left p-4">
+                    Status
+                  </th>
+
+                  <th className="text-center p-4">
+                    Actions
+                  </th>
+                </tr>
               </thead>
 
               <tbody>
+                {filtered.map(
+                  (item) => (
+                    <tr
+                      key={item.id}
+                      className="border-b hover:bg-gray-50"
+                    >
+                      <td className="p-4 font-medium">
+                        {item.studentName}
+                      </td>
 
-                {filtered.map((item) => (
+                      <td className="p-4">
+                        {item.rollNo}
+                      </td>
 
-                  <tr
-                    key={item.id}
-                    className="border-b hover:bg-gray-50"
-                  >
+                      <td className="p-4">
+                        {item.semester}
+                      </td>
 
-                    <td className="p-4 font-medium">
-                      {item.studentName}
-                    </td>
+                      <td className="p-4">
+                        ₹
+                        {item.totalFees}
+                      </td>
 
-                    <td className="p-4">
-                      {item.rollNo}
-                    </td>
+                      <td className="p-4">
+                        ₹
+                        {item.paidFees}
+                      </td>
 
-                    <td className="p-4">
-                      {item.semester}
-                    </td>
+                      <td className="p-4">
+                        ₹
+                        {item.pendingFees}
+                      </td>
 
-                    <td className="p-4">
-                      ₹{item.totalFees}
-                    </td>
-
-                    <td className="p-4">
-                      ₹{item.paidFees}
-                    </td>
-
-                    <td className="p-4">
-                      ₹{item.pendingFees}
-                    </td>
-
-                    <td className="p-4">
-
-                      <span
-                        className={`px-3 py-1 rounded-full text-sm ${item.status === "Paid"
-                          ? "bg-green-100 text-green-700"
-                          : item.status === "Partial"
-                            ? "bg-yellow-100 text-yellow-700"
-                            : "bg-red-100 text-red-700"
+                      <td className="p-4">
+                        <span
+                          className={`px-3 py-1 rounded-full text-sm ${
+                            item.status ===
+                            "Paid"
+                              ? "bg-green-100 text-green-700"
+                              : item.status ===
+                                "Partial"
+                              ? "bg-yellow-100 text-yellow-700"
+                              : "bg-red-100 text-red-700"
                           }`}
-                      >
-                        {item.status}
-                      </span>
-
-                    </td>
-
-                    <td className="p-4">
-
-                      <div className="flex justify-center gap-3">
-
-                        <button
-                          onClick={() => handleEdit(item)}
-                          className="bg-yellow-100 hover:bg-yellow-200 text-yellow-700 p-2 rounded-lg"
                         >
-                          <Pencil size={18} />
-                        </button>
+                          {item.status}
+                        </span>
+                      </td>
 
-                        <button
-                          onClick={() => handleDelete(item.id)}
-                          className="bg-red-100 hover:bg-red-200 text-red-700 p-2 rounded-lg"
-                        >
-                          <Trash2 size={18} />
-                        </button>
+                      <td className="p-4">
+                        <div className="flex justify-center gap-3">
+                          <button
+                            onClick={() =>
+                              handleEdit(
+                                item
+                              )
+                            }
+                            className="bg-yellow-100 hover:bg-yellow-200 text-yellow-700 p-2 rounded-lg"
+                          >
+                            <Pencil
+                              size={18}
+                            />
+                          </button>
 
-                      </div>
-
-                    </td>
-
-                  </tr>
-
-                ))}
-
+                          <button
+                            onClick={() =>
+                              handleDelete(
+                                item.id
+                              )
+                            }
+                            className="bg-red-100 hover:bg-red-200 text-red-700 p-2 rounded-lg"
+                          >
+                            <Trash2
+                              size={18}
+                            />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                )}
               </tbody>
-
             </table>
-
           </div>
-
         )}
-
       </div>
-
     </div>
-
   );
-
 }

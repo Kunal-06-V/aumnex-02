@@ -39,12 +39,24 @@ export default function EditProfile() {
           return;
         }
 
-        const studentRef = doc(db, "students", user.uid);
-        const studentSnap = await getDoc(studentRef);
+        const studentRef = doc(
+          db,
+          "students",
+          user.uid
+        );
+
+        const studentSnap =
+          await getDoc(studentRef);
 
         if (!studentSnap.exists()) {
-          toast.error("Student profile not found.");
-          router.push("/student/profile");
+          toast.error(
+            "Student profile not found."
+          );
+
+          router.push(
+            "/student/profile"
+          );
+
           return;
         }
 
@@ -53,8 +65,14 @@ export default function EditProfile() {
           ...studentSnap.data(),
         }));
       } catch (error) {
-        console.error("Failed to fetch student:", error);
-        toast.error("Failed to load profile.");
+        console.error(
+          "Failed to fetch student:",
+          error
+        );
+
+        toast.error(
+          "Failed to load profile."
+        );
       } finally {
         setLoading(false);
       }
@@ -89,12 +107,16 @@ export default function EditProfile() {
     }
 
     if (!/^\d{10}$/.test(formData.phone)) {
-      toast.error("Enter a valid 10-digit phone number.");
+      toast.error(
+        "Enter a valid 10-digit phone number."
+      );
       return;
     }
 
     if (!formData.address.trim()) {
-      toast.error("Address is required.");
+      toast.error(
+        "Address is required."
+      );
       return;
     }
 
@@ -104,28 +126,45 @@ export default function EditProfile() {
       const user = auth.currentUser;
 
       if (!user) {
-        toast.error("Please login again.");
+        toast.error(
+          "Please login again."
+        );
+
         router.push("/");
         return;
       }
 
-      const studentRef = doc(db, "students", user.uid);
+      const studentRef = doc(
+        db,
+        "students",
+        user.uid
+      );
 
+      // Only personal profile fields can
+      // be changed by the student.
       await updateDoc(studentRef, {
         name: formData.name.trim(),
         phone: formData.phone,
         address: formData.address.trim(),
-        division: formData.division,
-        batch: formData.batch,
         dob: formData.dob,
       });
 
-      toast.success("Profile updated successfully.");
+      toast.success(
+        "Profile updated successfully."
+      );
 
-      router.push("/student/profile");
+      router.push(
+        "/student/profile"
+      );
     } catch (error) {
-      console.error("Profile update error:", error);
-      toast.error("Failed to update profile.");
+      console.error(
+        "Profile update error:",
+        error
+      );
+
+      toast.error(
+        "Failed to update profile."
+      );
     } finally {
       setSaving(false);
     }
@@ -138,23 +177,31 @@ export default function EditProfile() {
   if (loading) {
     return (
       <div className="space-y-6">
+
         <PageHeader
           title="Edit Profile"
           subtitle="Update your personal information"
         />
 
         <div className="bg-white rounded-2xl shadow-lg p-8 animate-pulse">
+
           <div className="h-8 bg-gray-200 rounded w-64 mb-8" />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {[1, 2, 3, 4, 5, 6, 7, 8].map((item) => (
-              <div key={item}>
-                <div className="h-4 bg-gray-200 rounded w-24 mb-2" />
-                <div className="h-12 bg-gray-200 rounded-lg" />
-              </div>
-            ))}
+
+            {[1, 2, 3, 4, 5, 6, 7, 8].map(
+              (item) => (
+                <div key={item}>
+                  <div className="h-4 bg-gray-200 rounded w-24 mb-2" />
+                  <div className="h-12 bg-gray-200 rounded-lg" />
+                </div>
+              )
+            )}
+
           </div>
+
         </div>
+
       </div>
     );
   }
@@ -181,13 +228,16 @@ export default function EditProfile() {
         ========================== */}
 
         <div>
+
           <h2 className="text-2xl font-semibold text-slate-800">
             Personal Information
           </h2>
 
           <p className="text-gray-500 mt-1">
-            Update the information you want to change.
+            Update the information you want
+            to change.
           </p>
+
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -195,6 +245,7 @@ export default function EditProfile() {
           {/* NAME */}
 
           <div>
+
             <label className="block mb-2 font-medium text-gray-700">
               Full Name
             </label>
@@ -207,11 +258,13 @@ export default function EditProfile() {
               placeholder="Enter your full name"
               className="w-full border border-gray-300 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500"
             />
+
           </div>
 
           {/* EMAIL */}
 
           <div>
+
             <label className="block mb-2 font-medium text-gray-700">
               Email
             </label>
@@ -227,11 +280,13 @@ export default function EditProfile() {
             <p className="text-xs text-gray-500 mt-1">
               Email is managed through your account.
             </p>
+
           </div>
 
           {/* PHONE */}
 
           <div>
+
             <label className="block mb-2 font-medium text-gray-700">
               Phone Number
             </label>
@@ -245,11 +300,13 @@ export default function EditProfile() {
               placeholder="10-digit phone number"
               className="w-full border border-gray-300 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500"
             />
+
           </div>
 
           {/* DATE OF BIRTH */}
 
           <div>
+
             <label className="block mb-2 font-medium text-gray-700">
               Date of Birth
             </label>
@@ -261,11 +318,13 @@ export default function EditProfile() {
               onChange={handleChange}
               className="w-full border border-gray-300 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500"
             />
+
           </div>
 
           {/* ADDRESS */}
 
           <div className="md:col-span-2">
+
             <label className="block mb-2 font-medium text-gray-700">
               Address
             </label>
@@ -278,6 +337,7 @@ export default function EditProfile() {
               placeholder="Enter your address"
               className="w-full border border-gray-300 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500 resize-none"
             />
+
           </div>
 
         </div>
@@ -293,7 +353,8 @@ export default function EditProfile() {
           </h2>
 
           <p className="text-gray-500 mt-1 mb-6">
-            Academic details are controlled by the administration.
+            Academic details are controlled by
+            the administration.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -301,6 +362,7 @@ export default function EditProfile() {
             {/* DEPARTMENT */}
 
             <div>
+
               <label className="block mb-2 font-medium text-gray-700">
                 Department
               </label>
@@ -311,11 +373,13 @@ export default function EditProfile() {
                 disabled
                 className="w-full border border-gray-300 rounded-xl p-3 bg-gray-100 text-gray-500 cursor-not-allowed"
               />
+
             </div>
 
             {/* SEMESTER */}
 
             <div>
+
               <label className="block mb-2 font-medium text-gray-700">
                 Semester
               </label>
@@ -326,38 +390,41 @@ export default function EditProfile() {
                 disabled
                 className="w-full border border-gray-300 rounded-xl p-3 bg-gray-100 text-gray-500 cursor-not-allowed"
               />
+
             </div>
 
             {/* DIVISION */}
 
             <div>
+
               <label className="block mb-2 font-medium text-gray-700">
                 Division
               </label>
 
               <input
                 type="text"
-                name="division"
                 value={formData.division}
-                onChange={handleChange}
-                className="w-full border border-gray-300 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500"
+                disabled
+                className="w-full border border-gray-300 rounded-xl p-3 bg-gray-100 text-gray-500 cursor-not-allowed"
               />
+
             </div>
 
             {/* BATCH */}
 
             <div>
+
               <label className="block mb-2 font-medium text-gray-700">
                 Batch
               </label>
 
               <input
                 type="text"
-                name="batch"
                 value={formData.batch}
-                onChange={handleChange}
-                className="w-full border border-gray-300 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500"
+                disabled
+                className="w-full border border-gray-300 rounded-xl p-3 bg-gray-100 text-gray-500 cursor-not-allowed"
               />
+
             </div>
 
           </div>
@@ -372,7 +439,11 @@ export default function EditProfile() {
 
           <button
             type="button"
-            onClick={() => router.push("/student/profile")}
+            onClick={() =>
+              router.push(
+                "/student/profile"
+              )
+            }
             disabled={saving}
             className="px-6 py-3 rounded-xl border border-gray-300 hover:bg-gray-100 transition"
           >
@@ -388,7 +459,9 @@ export default function EditProfile() {
                 : "bg-blue-600 hover:bg-blue-700"
             }`}
           >
-            {saving ? "Saving..." : "Save Changes"}
+            {saving
+              ? "Saving..."
+              : "Save Changes"}
           </button>
 
         </div>

@@ -16,6 +16,11 @@ import {
 import {
   collection,
   getDocs,
+  getDoc,
+  doc,
+  query,
+  where,
+  limit,
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
@@ -43,9 +48,29 @@ export default function StudentAIPage() {
       setLoading(true);
       setError("");
 
-      const sessionsSnapshot = await getDocs(
-        collection(db, "attendanceSessions")
+      /*
+       * Load only attendance sessions belonging to
+       * the student's current semester and division.
+       *
+       * This avoids reading every attendance session
+       * in the database.
+       */
+      const sessionsQuery = query(
+        collection(db, "attendanceSessions"),
+        where(
+          "semester",
+          "==",
+          student.semester
+        ),
+        where(
+          "division",
+          "==",
+          student.division
+        )
       );
+
+      const sessionsSnapshot =
+        await getDocs(sessionsQuery);
 
       const attendance = {
         present: 0,
@@ -56,61 +81,94 @@ export default function StudentAIPage() {
         records: [],
       };
 
-      for (const sessionDoc of sessionsSnapshot.docs) {
+      for (
+        const sessionDoc of
+          sessionsSnapshot.docs
+      ) {
         if (sessionDoc.id === "current") {
           continue;
         }
 
-        const sessionData = sessionDoc.data();
+        const sessionData =
+          sessionDoc.data();
+
+        let studentRecord = null;
 
         /*
-         * Only consider sessions belonging to the
-         * student's current semester and division.
+         * Preferred structure:
+         *
+         * attendanceSessions/{sessionId}/students/{studentUid}
          */
-        if (
-          sessionData.semester !== student.semester ||
-          sessionData.division !== student.division
-        ) {
-          continue;
-        }
-
-        const studentRef = collection(
+        const directStudentRef = doc(
           db,
           "attendanceSessions",
           sessionDoc.id,
-          "students"
+          "students",
+          student.uid
         );
 
-        const studentAttendanceSnapshot =
-          await getDocs(studentRef);
-
-        const studentRecord =
-          studentAttendanceSnapshot.docs.find(
-            (recordDoc) => {
-              const record = recordDoc.data();
-
-              return (
-                record.uid === student.uid ||
-                recordDoc.id === student.uid
-              );
-            }
+        const directStudentSnapshot =
+          await getDoc(
+            directStudentRef
           );
+
+        if (
+          directStudentSnapshot.exists()
+        ) {
+          studentRecord =
+            directStudentSnapshot.data();
+        }
+
+        /*
+         * Compatibility fallback for older
+         * attendance records whose document ID
+         * is not the student's Firebase UID.
+         */
+        if (!studentRecord) {
+          const studentQuery = query(
+            collection(
+              db,
+              "attendanceSessions",
+              sessionDoc.id,
+              "students"
+            ),
+            where(
+              "uid",
+              "==",
+              student.uid
+            ),
+            limit(1)
+          );
+
+          const studentSnapshot =
+            await getDocs(studentQuery);
+
+          if (
+            !studentSnapshot.empty
+          ) {
+            studentRecord =
+              studentSnapshot.docs[0].data();
+          }
+        }
 
         if (!studentRecord) {
           continue;
         }
 
-        const record = studentRecord.data();
-
-        const status = record.status;
+        const status =
+          studentRecord.status;
 
         attendance.total++;
 
         if (status === "Present") {
           attendance.present++;
-        } else if (status === "Absent") {
+        } else if (
+          status === "Absent"
+        ) {
           attendance.absent++;
-        } else if (status === "Leave") {
+        } else if (
+          status === "Leave"
+        ) {
           attendance.leave++;
         }
 
@@ -125,10 +183,14 @@ export default function StudentAIPage() {
           };
         }
 
-        attendance.subjects[subject].total++;
+        attendance.subjects[
+          subject
+        ].total++;
 
         if (status === "Present") {
-          attendance.subjects[subject].present++;
+          attendance.subjects[
+            subject
+          ].present++;
         }
 
         attendance.records.push({
@@ -146,10 +208,10 @@ export default function StudentAIPage() {
         attendance.total === 0
           ? null
           : Math.round(
-            (attendance.present /
-              attendance.total) *
-            100
-          );
+              (attendance.present /
+                attendance.total) *
+                100
+            );
 
       const subjectList = Object.entries(
         attendance.subjects
@@ -159,10 +221,10 @@ export default function StudentAIPage() {
             data.total === 0
               ? 0
               : Math.round(
-                (data.present /
-                  data.total) *
-                100
-              );
+                  (data.present /
+                    data.total) *
+                    100
+                );
 
           return {
             subject,
@@ -187,7 +249,9 @@ export default function StudentAIPage() {
       if (
         attendancePercentage !== null
       ) {
-        if (attendancePercentage < 60) {
+        if (
+          attendancePercentage < 60
+        ) {
           riskLevel = "HIGH";
         } else if (
           attendancePercentage < 75
@@ -217,19 +281,21 @@ export default function StudentAIPage() {
       let academicResult = null;
 
       try {
-        const semesterSnapshot = await getDocs(
-          collection(
-            db,
-            "results",
-            student.uid,
-            "semesters"
-          )
-        );
+        const semesterSnapshot =
+          await getDocs(
+            collection(
+              db,
+              "results",
+              student.uid,
+              "semesters"
+            )
+          );
 
         const matchingSemester =
           semesterSnapshot.docs.find(
             (semesterDoc) =>
-              semesterDoc.id === semesterId
+              semesterDoc.id ===
+              semesterId
           );
 
         if (matchingSemester) {
@@ -244,7 +310,9 @@ export default function StudentAIPage() {
       }
 
       const academicScore =
-        getAcademicScore(academicResult);
+        getAcademicScore(
+          academicResult
+        );
 
       setProfile({
         attendancePercentage,
@@ -278,10 +346,10 @@ export default function StudentAIPage() {
       setError("");
 
       if (!profile) {
-  throw new Error(
-    "There is not enough academic data to generate an analysis yet."
-  );
-}
+        throw new Error(
+          "There is not enough academic data to generate an analysis yet."
+        );
+      }
 
       const response = await fetch(
         "/api/ai",
@@ -327,7 +395,7 @@ export default function StudentAIPage() {
       ) {
         throw new Error(
           result.message ||
-          "AI analysis failed."
+            "AI analysis failed."
         );
       }
 
@@ -340,7 +408,7 @@ export default function StudentAIPage() {
 
       setError(
         error.message ||
-        "AI analysis failed."
+          "AI analysis failed."
       );
     } finally {
       setAnalyzing(false);
@@ -380,6 +448,7 @@ export default function StudentAIPage() {
   return (
     <div className="space-y-8">
       {/* Header */}
+
       <div className="bg-linear-to-r from-slate-900 to-blue-900 text-white rounded-3xl p-8 shadow-xl">
         <div className="flex items-start gap-4">
           <div className="bg-white/10 p-3 rounded-2xl">
@@ -404,6 +473,7 @@ export default function StudentAIPage() {
       </div>
 
       {/* Error */}
+
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-4">
           {error}
@@ -411,6 +481,7 @@ export default function StudentAIPage() {
       )}
 
       {/* Health Summary */}
+
       <div className="bg-white rounded-3xl shadow-md border border-gray-100 p-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
@@ -439,12 +510,13 @@ export default function StudentAIPage() {
       </div>
 
       {/* Main Stats */}
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <StatCard
           title="Attendance"
           value={
             profile.attendancePercentage ===
-              null
+            null
               ? "N/A"
               : `${profile.attendancePercentage}%`
           }
@@ -473,7 +545,7 @@ export default function StudentAIPage() {
           title="Academic Score"
           value={
             profile.academicScore ===
-              null
+            null
               ? "N/A"
               : `${profile.academicScore}%`
           }
@@ -484,6 +556,7 @@ export default function StudentAIPage() {
       </div>
 
       {/* Attendance Goal */}
+
       <div className="bg-white rounded-3xl shadow-md border border-gray-100 p-6">
         <div className="flex items-center justify-between">
           <div>
@@ -498,7 +571,7 @@ export default function StudentAIPage() {
 
           <span className="font-bold text-blue-600">
             {profile.attendancePercentage ===
-              null
+            null
               ? "N/A"
               : `${profile.attendancePercentage}%`}
           </span>
@@ -510,7 +583,7 @@ export default function StudentAIPage() {
             style={{
               width: `${Math.min(
                 profile.attendancePercentage ||
-                0,
+                  0,
                 100
               )}%`,
             }}
@@ -526,7 +599,7 @@ export default function StudentAIPage() {
         {profile.attendancePercentage !==
           null &&
           profile.attendancePercentage <
-          75 && (
+            75 && (
             <div className="mt-5 bg-yellow-50 border border-yellow-200 rounded-2xl p-4">
               <p className="font-semibold text-yellow-800">
                 Attendance needs attention
@@ -541,6 +614,7 @@ export default function StudentAIPage() {
       </div>
 
       {/* Subject Performance */}
+
       <div className="bg-white rounded-3xl shadow-md border border-gray-100 p-6">
         <div className="flex items-center gap-3">
           <BookOpen
@@ -560,7 +634,7 @@ export default function StudentAIPage() {
         </div>
 
         {profile.subjects.length ===
-          0 ? (
+        0 ? (
           <div className="text-center py-10 text-gray-500">
             No subject attendance data available.
           </div>
@@ -585,11 +659,12 @@ export default function StudentAIPage() {
                     </div>
 
                     <span
-                      className={`font-bold ${subject.percentage <
-                          75
+                      className={`font-bold ${
+                        subject.percentage <
+                        75
                           ? "text-red-600"
                           : "text-green-600"
-                        }`}
+                      }`}
                     >
                       {subject.percentage}%
                     </span>
@@ -611,6 +686,7 @@ export default function StudentAIPage() {
       </div>
 
       {/* AI Analysis */}
+
       <div className="bg-white rounded-3xl shadow-lg border border-blue-100 p-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
@@ -698,7 +774,8 @@ export default function StudentAIPage() {
                 </h3>
 
                 <div className="space-y-2">
-                  {(insight.concerns ||
+                  {(
+                    insight.concerns ||
                     []
                   ).map(
                     (item, index) => (
@@ -772,7 +849,10 @@ function getAcademicScore(result) {
 
   return Number(
     Math.min(
-      Math.max((cgpa / 10) * 100, 0),
+      Math.max(
+        (cgpa / 10) * 100,
+        0
+      ),
       100
     ).toFixed(1)
   );
@@ -811,9 +891,7 @@ function StatCard({
   );
 }
 
-function RiskBadge({
-  risk,
-}) {
+function RiskBadge({ risk }) {
   const styles = {
     HIGH: "bg-red-100 text-red-700",
     MEDIUM:
@@ -823,9 +901,10 @@ function RiskBadge({
 
   return (
     <span
-      className={`inline-flex px-3 py-1 rounded-full text-sm font-semibold ${styles[risk] ||
+      className={`inline-flex px-3 py-1 rounded-full text-sm font-semibold ${
+        styles[risk] ||
         "bg-gray-100 text-gray-700"
-        }`}
+      }`}
     >
       {risk}
     </span>

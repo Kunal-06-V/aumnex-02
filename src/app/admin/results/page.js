@@ -251,17 +251,37 @@ export default function ResultsPage() {
     };
 
     try {
-      await setDoc(
-        doc(
-          db,
-          "results",
-          form.id,
-          "semesters",
-          semesterId
-        ),
-        data,
-        { merge: true }
-      );
+     // Create/update the parent result document.
+// This makes the student visible in the Admin Results list.
+await setDoc(
+  doc(
+    db,
+    "results",
+    form.id
+  ),
+  {
+    studentUid: form.id,
+    studentName: form.studentName,
+    rollNo: form.rollNo,
+    department: form.department,
+    currentSemester: form.semester,
+    updatedAt: new Date(),
+  },
+  { merge: true }
+);
+
+// Create/update the actual semester result.
+await setDoc(
+  doc(
+    db,
+    "results",
+    form.id,
+    "semesters",
+    semesterId
+  ),
+  data,
+  { merge: true }
+);
 
       toast.success(
         editing
