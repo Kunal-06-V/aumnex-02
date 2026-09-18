@@ -11,9 +11,6 @@ import {
   where,
 } from "firebase/firestore";
 
-import { onAuthStateChanged } from "firebase/auth";
-
-
 import {
   UserCheck,
   UserX,
@@ -21,59 +18,9 @@ import {
   BadgeCheck,
 } from "lucide-react";
 
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import PageHeader from "@/components/PageHeader";
 import { useStudent } from "@/context/StudentContext";
-
-function getDateString(value) {
-  if (!value) return "";
-
-  try {
-    if (typeof value.toDate === "function") {
-      return value.toDate().toISOString().split("T")[0];
-    }
-
-    if (value instanceof Date) {
-      return value.toISOString().split("T")[0];
-    }
-
-    if (typeof value === "string") {
-      return value.length >= 10
-        ? value.slice(0, 10)
-        : value;
-    }
-
-    return "";
-  } catch {
-    return "";
-  }
-}
-
-function getTimeString(value) {
-  if (!value) return "";
-
-  try {
-    if (typeof value.toDate === "function") {
-      return value
-        .toDate()
-        .toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-    }
-
-    if (value instanceof Date) {
-      return value.toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    }
-
-    return "";
-  } catch {
-    return "";
-  }
-}
 
 export default function StudentAttendance() {
   const { student } = useStudent();
@@ -100,116 +47,132 @@ export default function StudentAttendance() {
 
   const [loading, setLoading] = useState(true);
 
-useEffect(() => {
-  let active = true;
-
-  async function loadAttendance() {
+  useEffect(() => {
     if (!student?.uid) {
-      if (active) {
-        setLoading(false);
-      }
+      setLoading(false);
       return;
     }
 
-    try {
-      setLoading(true);
+    async function loadAttendance() {
+      try {
+        setLoading(true);
 
-      const attendanceQuery = query(
-        collection(db, "attendanceHistory"),
-        where("studentId", "==", student.uid)
-      );
+        let present = 0;
+        let absent = 0;
+        let leave = 0;
 
-      const snapshot = await getDocs(
-        attendanceQuery
-      );
+        const today = new Date()
+          .toISOString()
+          .split("T")[0];
 
-      let present = 0;
-      let absent = 0;
-      let leave = 0;
+        const subjectMap = {};
 
-      const subjectMap = {};
+        /*
+         * Attendance summary is scoped to the
+         * student's current semester and division.
+         */
+        let sessionsSnapshot = {
+          docs: [],
+        };
 
-      const today = new Date()
-        .toISOString()
-        .split("T")[0];
-
-      let todayRecord = null;
-
-      for (const attendanceDoc of snapshot.docs) {
-        const data = attendanceDoc.data();
-
-        // Defensive UID check
         if (
-          data.studentId &&
-          data.studentId !== student.uid
+          student.semester &&
+          student.division
         ) {
-          continue;
+          const sessionsQuery = query(
+            collection(
+              db,
+              "attendanceSessions"
+            ),
+            where(
+              "semester",
+              "==",
+              student.semester
+            ),
+            where(
+              "division",
+              "==",
+              student.division
+            )
+          );
+
+          sessionsSnapshot =
+            await getDocs(
+              sessionsQuery
+            );
         }
 
-        const status =
-          data.status || "Unknown";
-
-        const subject =
-          data.subject?.trim() ||
-          "Unknown";
-
-        if (status === "Present") {
-          present++;
-        } else if (
-          status === "Absent"
+        for (
+          const sessionDoc of
+            sessionsSnapshot.docs
         ) {
-          absent++;
-        } else if (
-          status === "Leave"
-        ) {
-          leave++;
-        }
-
-        if (!subjectMap[subject]) {
-          subjectMap[subject] = {
-            id: subject,
-            subject,
-            present: 0,
-            total: 0,
-          };
-        }
-
-        subjectMap[subject].total++;
-
-        if (status === "Present") {
-          subjectMap[subject].present++;
-        }
-
-        // Today's attendance
-        let recordDate = "";
-
-        if (data.createdAt) {
-          try {
-            if (
-              typeof data.createdAt.toDate ===
-              "function"
-            ) {
-              recordDate = data.createdAt
-                .toDate()
-                .toISOString()
-                .split("T")[0];
-            }
-          } catch {
-            recordDate = "";
+          /*
+           * Temporary live NFC session.
+           * Never count it as historical attendance.
+           */
+          if (
+            sessionDoc.id === "current"
+          ) {
+            continue;
           }
-        }
 
-        if (
-          recordDate === today
-        ) {
-          todayRecord = {
-            found: true,
-            subject,
-            status,
-            date: recordDate,
-            time:
-              data.createdAt?.toDate
-                ? data.createdAt
+          const session =
+            sessionDoc.data();
+
+          /*
+           * Read ONLY this student's
+           * attendance document.
+           */
+          const studentAttendanceRef =
+            doc(
+              db,
+              "attendanceSessions",
+              sessionDoc.id,
+              "students",
+              student.uid
+            );
+
+          const studentAttendanceSnap =
+            await getDoc(
+              studentAttendanceRef
+            );
+
+          if (
+            !studentAttendanceSnap.exists()
+          ) {
+            continue;
+          }
+
+          const data =
+            studentAttendanceSnap.data();
+
+          /*
+           * Defensive identity validation.
+           */
+          if (
+            data.uid &&
+            data.uid !== student.uid
+          ) {
+            continue;
+          }
+
+          /*
+           * Today's attendance
+           */
+          if (
+            session.date === today
+          ) {
+            setTodayAttendance({
+              found: true,
+              subject:
+                session.subject ||
+                "Unknown",
+              status:
+                data.status ||
+                "Unknown",
+              date: session.date,
+              time: data.markedAt
+                ? data.markedAt
                     .toDate()
                     .toLocaleTimeString(
                       [],
@@ -219,77 +182,106 @@ useEffect(() => {
                       }
                     )
                 : "",
-          };
+            });
+          }
+
+          /*
+           * Overall attendance
+           */
+          if (
+            data.status === "Present"
+          ) {
+            present++;
+          } else if (
+            data.status === "Absent"
+          ) {
+            absent++;
+          } else if (
+            data.status === "Leave"
+          ) {
+            leave++;
+          }
+
+          /*
+           * Subject-wise attendance
+           */
+          const subject =
+            session.subject ||
+            "Unknown";
+
+          if (
+            !subjectMap[subject]
+          ) {
+            subjectMap[subject] = {
+              id: subject,
+              subject,
+              present: 0,
+              total: 0,
+            };
+          }
+
+          subjectMap[
+            subject
+          ].total++;
+
+          if (
+            data.status === "Present"
+          ) {
+            subjectMap[
+              subject
+            ].present++;
+          }
         }
-      }
 
-      const total =
-        present +
-        absent +
-        leave;
+        const total =
+          present +
+          absent +
+          leave;
 
-      const percentage =
-        total > 0
-          ? Math.round(
-              (present / total) * 100
-            )
-          : null;
+        const percentage =
+          total === 0
+            ? 0
+            : Math.round(
+                (present / total) *
+                  100
+              );
 
-      const subjectList =
-        Object.values(
-          subjectMap
-        ).map((item) => {
-          const subjectPercentage =
-            item.total > 0
-              ? Math.round(
-                  (item.present /
-                    item.total) *
-                    100
-                )
-              : 0;
+        const subjectList =
+          Object.values(
+            subjectMap
+          ).map((item) => {
+            const percent =
+              item.total === 0
+                ? 0
+                : Math.round(
+                    (item.present /
+                      item.total) *
+                      100
+                  );
 
-          return {
-            ...item,
-            percentage:
-              subjectPercentage,
-            status:
-              subjectPercentage >= 90
-                ? "Excellent"
-                : subjectPercentage >= 75
-                ? "Good"
-                : "Poor",
-          };
-        });
+            return {
+              ...item,
+              percentage:
+                percent,
+              status:
+                percent >= 90
+                  ? "Excellent"
+                  : percent >= 75
+                  ? "Good"
+                  : "Poor",
+            };
+          });
 
-      /*
-       * If attendanceHistory has data,
-       * calculate it from actual records.
-       *
-       * If it does not, we still preserve the
-       * verified percentage stored on the student
-       * profile instead of falsely showing 0%.
-       */
-      const finalPercentage =
-        percentage !== null
-          ? percentage
-          : Number(
-              student.attendancePercentage ??
-                student.attendance ??
-                0
-            );
-
-      if (active) {
         setAttendance({
-          percentage:
-            finalPercentage,
+          percentage,
           present,
           absent,
           leave,
           total,
           status:
-            finalPercentage >= 90
+            percentage >= 90
               ? "Excellent"
-              : finalPercentage >= 75
+              : percentage >= 75
               ? "Good"
               : "Poor",
         });
@@ -297,69 +289,28 @@ useEffect(() => {
         setSubjects(
           subjectList
         );
-
-        setTodayAttendance(
-          todayRecord || {
-            found: false,
-            subject: "",
-            status: "",
-            date: "",
-            time: "",
-          }
+      } catch (error) {
+        console.error(
+          "Student attendance error:",
+          error
         );
-      }
-
-      console.log(
-        "[Attendance] UID:",
-        student.uid
-      );
-
-      console.log(
-        "[Attendance] History count:",
-        snapshot.size
-      );
-
-      console.log(
-        "[Attendance] Total:",
-        total
-      );
-
-      console.log(
-        "[Attendance] Present:",
-        present
-      );
-
-      console.log(
-        "[Attendance] Absent:",
-        absent
-      );
-
-      console.log(
-        "[Attendance] Subjects:",
-        subjectList
-      );
-    } catch (error) {
-      console.error(
-        "[Attendance] Error:",
-        error
-      );
-    } finally {
-      if (active) {
+      } finally {
         setLoading(false);
       }
     }
-  }
 
-  loadAttendance();
+    loadAttendance();
+  }, [student]);
 
-  return () => {
-    active = false;
-  };
-}, [student]);
+  /* -----------------------------------------
+     LOADING
+  ----------------------------------------- */
+
   if (loading) {
     return (
       <div className="space-y-8">
         <div className="animate-pulse space-y-6">
+
           <div className="h-10 bg-gray-300 rounded w-64" />
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
@@ -374,10 +325,15 @@ useEffect(() => {
           </div>
 
           <div className="bg-white rounded-2xl h-96 shadow" />
+
         </div>
       </div>
     );
   }
+
+  /* -----------------------------------------
+     PAGE
+  ----------------------------------------- */
 
   return (
     <div className="space-y-8">
@@ -388,7 +344,7 @@ useEffect(() => {
 
         <PageHeader
           title="Attendance"
-          subtitle="Monitor your attendance performance"
+          subtitle="Monitor your current semester attendance performance"
         />
 
         <a
@@ -471,8 +427,8 @@ useEffect(() => {
             </p>
 
             <p className="text-gray-500 mt-2">
-              Your attendance has not been recorded
-              for today.
+              Your attendance has not been
+              recorded for today.
             </p>
 
           </div>
@@ -485,6 +441,7 @@ useEffect(() => {
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
 
         <div className="bg-white rounded-2xl shadow-lg p-6">
+
           <div className="flex justify-between items-center">
 
             <div>
@@ -505,9 +462,11 @@ useEffect(() => {
             </div>
 
           </div>
+
         </div>
 
         <div className="bg-white rounded-2xl shadow-lg p-6">
+
           <div className="flex justify-between items-center">
 
             <div>
@@ -528,9 +487,11 @@ useEffect(() => {
             </div>
 
           </div>
+
         </div>
 
         <div className="bg-white rounded-2xl shadow-lg p-6">
+
           <div className="flex justify-between items-center">
 
             <div>
@@ -551,9 +512,11 @@ useEffect(() => {
             </div>
 
           </div>
+
         </div>
 
         <div className="bg-white rounded-2xl shadow-lg p-6">
+
           <div className="flex justify-between items-center">
 
             <div>
@@ -574,6 +537,7 @@ useEffect(() => {
             </div>
 
           </div>
+
         </div>
 
       </div>
@@ -599,13 +563,7 @@ useEffect(() => {
           <div
             className="h-full rounded-full bg-linear-to-r from-green-500 to-blue-600 transition-all duration-700"
             style={{
-              width: `${Math.min(
-                Math.max(
-                  attendance.percentage,
-                  0
-                ),
-                100
-              )}%`,
+              width: `${attendance.percentage}%`,
             }}
           />
 
@@ -622,6 +580,10 @@ useEffect(() => {
           <h2 className="text-2xl font-semibold">
             Subject Wise Attendance
           </h2>
+
+          <p className="text-sm text-gray-500 mt-1">
+            Current semester and division
+          </p>
 
         </div>
 
@@ -659,17 +621,7 @@ useEffect(() => {
 
             <tbody>
 
-              {subjects.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={5}
-                    className="text-center p-10 text-gray-500"
-                  >
-                    No attendance subject records
-                    available.
-                  </td>
-                </tr>
-              ) : (
+              {subjects.length > 0 ? (
                 subjects.map(
                   (subject) => (
                     <tr
@@ -714,6 +666,19 @@ useEffect(() => {
                     </tr>
                   )
                 )
+              ) : (
+                <tr>
+
+                  <td
+                    colSpan="5"
+                    className="p-8 text-center text-gray-500"
+                  >
+                    No attendance records available
+                    for the current semester and
+                    division.
+                  </td>
+
+                </tr>
               )}
 
             </tbody>

@@ -9,6 +9,8 @@ import {
   onSnapshot,
   updateDoc,
   deleteDoc,
+  setDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
@@ -77,32 +79,96 @@ const [filter, setFilter] = useState("All");
       )
     );
   }
-  async function saveChanges() {
-    try {
-      setSaving(true);
+ async function saveChanges() {
+  try {
+    setSaving(true);
 
-      for (const student of students) {
-        const studentRef = doc(
-          db,
-          "attendanceSessions",
+    for (const student of students) {
+      // 1. Update the attendance session record
+      const studentRef = doc(
+        db,
+        "attendanceSessions",
+        sessionId,
+        "students",
+        student.id
+      );
+
+      await updateDoc(studentRef, {
+        status: student.status,
+      });
+
+      // 2. Keep attendance history synchronized
+      const historyId =
+        `${sessionId}_${student.id}`;
+
+      const historyRef = doc(
+        db,
+        "attendanceHistory",
+        historyId
+      );
+
+      await setDoc(
+        historyRef,
+        {
+          studentId: student.id,
+          studentUid: student.id,
+
+          studentName:
+            student.name || "",
+
+          rollNo:
+            student.rollNo || "",
+
+          department:
+            session?.department || "",
+
+          semester:
+            session?.semester || "",
+
+          division:
+            session?.division || "",
+
+          date:
+            session?.date || "",
+
+          subject:
+            session?.subject || "",
+
+          status:
+            student.status,
+
+          method:
+            student.method || "Manual",
+
           sessionId,
-          "students",
-          student.id
-        );
 
-        await updateDoc(studentRef, {
-          status: student.status,
-        });
-      }
+          markedAt:
+            student.markedAt ||
+            serverTimestamp(),
 
-      toast.success("Attendance updated successfully!");
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to update attendance.");
-    } finally {
-      setSaving(false);
+          updatedAt:
+            serverTimestamp(),
+        },
+        { merge: true }
+      );
     }
+
+    toast.success(
+      "Attendance and history updated successfully!"
+    );
+  } catch (error) {
+    console.error(
+      "Failed to update attendance:",
+      error
+    );
+
+    toast.error(
+      "Failed to update attendance and history."
+    );
+  } finally {
+    setSaving(false);
   }
+}
   async function deleteSession() {
   const confirmed = window.confirm(
     "Are you sure you want to delete this attendance session?"
