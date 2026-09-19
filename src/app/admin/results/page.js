@@ -65,80 +65,156 @@ export default function ResultsPage() {
   const [form, setForm] = useState(emptyForm);
 
   useEffect(() => {
-    fetchStudents();
-    fetchResults();
+    loadData();
   }, []);
 
   useEffect(() => {
-    const text = search.toLowerCase().trim();
+    const text = search
+      .toLowerCase()
+      .trim();
 
     setFiltered(
       results.filter(
         (item) =>
-          item.studentName?.toLowerCase().includes(text) ||
-          item.rollNo?.toLowerCase().includes(text)
+          item.studentName
+            ?.toLowerCase()
+            .includes(text) ||
+          item.rollNo
+            ?.toLowerCase()
+            .includes(text)
       )
     );
   }, [search, results]);
 
-  async function fetchStudents() {
-    try {
-      const snapshot = await getDocs(collection(db, "students"));
-
-      const data = snapshot.docs.map((student) => ({
-        id: student.id,
-        ...student.data(),
-      }));
-
-      data.sort((a, b) =>
-        (a.name || "").localeCompare(b.name || "")
-      );
-
-      setStudents(data);
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to load students.");
-    }
-  }
-
-  async function fetchResults() {
+  async function loadData() {
     setLoading(true);
 
     try {
-      const resultsSnapshot = await getDocs(
-        collection(db, "results")
+      const [studentsSnapshot, resultsSnapshot] =
+        await Promise.all([
+          getDocs(
+            collection(db, "students")
+          ),
+          getDocs(
+            collection(db, "results")
+          ),
+        ]);
+
+      const studentList =
+        studentsSnapshot.docs.map(
+          (studentDoc) => ({
+            id: studentDoc.id,
+            ...studentDoc.data(),
+          })
+        );
+
+      studentList.sort((a, b) =>
+        (a.name || "").localeCompare(
+          b.name || ""
+        )
       );
+
+      setStudents(studentList);
 
       const allResults = [];
 
-      for (const resultDoc of resultsSnapshot.docs) {
-        const studentUid = resultDoc.id;
+      for (
+        const resultDoc of
+          resultsSnapshot.docs
+      ) {
+        const studentUid =
+          resultDoc.id;
 
-        const semesterSnapshot = await getDocs(
-          collection(
-            db,
-            "results",
-            studentUid,
-            "semesters"
-          )
-        );
+        const linkedStudent =
+          studentList.find(
+            (student) =>
+              student.id ===
+              studentUid
+          );
 
-        for (const semesterDoc of semesterSnapshot.docs) {
-          const data = semesterDoc.data();
+        const semesterSnapshot =
+          await getDocs(
+            collection(
+              db,
+              "results",
+              studentUid,
+              "semesters"
+            )
+          );
+
+        for (
+          const semesterDoc of
+            semesterSnapshot.docs
+        ) {
+          const data =
+            semesterDoc.data();
 
           allResults.push({
             id: studentUid,
-            semesterId: semesterDoc.id,
-            ...data,
+
+            semesterId:
+              semesterDoc.id,
+
+            /*
+             * Student master is authoritative
+             * for identity fields.
+             */
+            studentName:
+              linkedStudent?.name ||
+              data.studentName ||
+              "",
+
+            rollNo:
+              linkedStudent?.rollNo ||
+              data.rollNo ||
+              "",
+
+            department:
+              linkedStudent?.department ||
+              data.department ||
+              "",
+
+            semester:
+              data.semester ||
+              linkedStudent?.semester ||
+              "",
+
+            sgpa:
+              data.sgpa ?? "",
+
+            cgpa:
+              data.cgpa ?? "",
+
+            percentage:
+              data.percentage ?? "",
+
+            failedSubjects:
+              data.failedSubjects ??
+              0,
+
+            status:
+              data.status ||
+              "",
           });
         }
       }
 
-      setResults(allResults);
-      setFiltered(allResults);
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to load results.");
+      setResults(
+        allResults
+      );
+
+      setFiltered(
+        allResults
+      );
+    } catch (error) {
+      console.error(
+        "Failed to load results:",
+        error
+      );
+
+      toast.error(
+        "Failed to load results."
+      );
     } finally {
       setLoading(false);
     }
@@ -146,19 +222,26 @@ export default function ResultsPage() {
 
   const stats = useMemo(() => {
     return {
-      total: results.length,
+      total:
+        results.length,
 
-      pass: results.filter(
-        (r) => r.status === "PASS"
-      ).length,
+      pass:
+        results.filter(
+          (r) =>
+            r.status === "PASS"
+        ).length,
 
-      fail: results.filter(
-        (r) => r.status === "FAIL"
-      ).length,
+      fail:
+        results.filter(
+          (r) =>
+            r.status === "FAIL"
+        ).length,
 
-      atkt: results.filter(
-        (r) => r.status === "ATKT"
-      ).length,
+      atkt:
+        results.filter(
+          (r) =>
+            r.status === "ATKT"
+        ).length,
     };
   }, [results]);
 
@@ -168,49 +251,112 @@ export default function ResultsPage() {
     setForm(emptyForm);
   }
 
-  function selectStudent(studentId) {
-    const student = students.find(
-      (item) => item.id === studentId
-    );
+  function selectStudent(
+    studentId
+  ) {
+    const student =
+      students.find(
+        (item) =>
+          item.id ===
+          studentId
+      );
 
-    if (!student) return;
+    if (!student) {
+      return;
+    }
 
     setForm({
       ...form,
-      id: student.id,
-      studentName: student.name || "",
-      rollNo: student.rollNo || "",
-      department: student.department || "",
-      semester: student.semester || "Semester 4",
+
+      id:
+        student.id,
+
+      studentName:
+        student.name || "",
+
+      rollNo:
+        student.rollNo || "",
+
+      department:
+        student.department ||
+        "",
+
+      semester:
+        student.semester ||
+        "Semester 4",
     });
   }
 
   function handleEdit(item) {
+    /*
+     * Always resolve identity fields
+     * from the authoritative Student
+     * record.
+     */
+    const student =
+      students.find(
+        (candidate) =>
+          candidate.id ===
+          item.id
+      );
+
     setEditing(true);
     setShowForm(true);
 
     setForm({
-      id: item.id,
-      studentName: item.studentName || "",
-      rollNo: item.rollNo || "",
-      department: item.department || "",
-      semester: item.semester || "Semester 4",
-      sgpa: item.sgpa ?? "",
-      cgpa: item.cgpa ?? "",
-      percentage: item.percentage ?? "",
-      failedSubjects: item.failedSubjects ?? 0,
-      status: item.status || "",
+      id:
+        item.id,
+
+      studentName:
+        student?.name ||
+        item.studentName ||
+        "",
+
+      rollNo:
+        student?.rollNo ||
+        item.rollNo ||
+        "",
+
+      department:
+        student?.department ||
+        item.department ||
+        "",
+
+      semester:
+        item.semester ||
+        student?.semester ||
+        "Semester 4",
+
+      sgpa:
+        item.sgpa ?? "",
+
+      cgpa:
+        item.cgpa ?? "",
+
+      percentage:
+        item.percentage ?? "",
+
+      failedSubjects:
+        item.failedSubjects ??
+        0,
+
+      status:
+        item.status || "",
     });
   }
 
   async function handleSave() {
     if (!form.id) {
-      toast.error("Select a student.");
+      toast.error(
+        "Select a student."
+      );
       return;
     }
 
     if (!form.semester) {
-      toast.error("Select a semester.");
+      toast.error(
+        "Select a semester."
+      );
       return;
     }
 
@@ -225,63 +371,142 @@ export default function ResultsPage() {
       return;
     }
 
+    const sgpa =
+      Number(form.sgpa);
+
+    const cgpa =
+      Number(form.cgpa);
+
+    const percentage =
+      Number(form.percentage);
+
+    const failedSubjects =
+      Number(
+        form.failedSubjects
+      ) || 0;
+
+    if (
+      !Number.isFinite(sgpa) ||
+      sgpa < 0 ||
+      sgpa > 10
+    ) {
+      toast.error(
+        "SGPA must be between 0 and 10."
+      );
+      return;
+    }
+
+    if (
+      !Number.isFinite(cgpa) ||
+      cgpa < 0 ||
+      cgpa > 10
+    ) {
+      toast.error(
+        "CGPA must be between 0 and 10."
+      );
+      return;
+    }
+
+    if (
+      !Number.isFinite(
+        percentage
+      ) ||
+      percentage < 0 ||
+      percentage > 100
+    ) {
+      toast.error(
+        "Percentage must be between 0 and 100."
+      );
+      return;
+    }
+
+    if (
+      !Number.isFinite(
+        failedSubjects
+      ) ||
+      failedSubjects < 0
+    ) {
+      toast.error(
+        "Failed Subjects must be a non-negative whole number."
+      );
+      return;
+    }
+
+    /*
+     * Re-resolve the student before saving.
+     * This prevents a stale Roll No from
+     * being written back to the result.
+     */
+    const student =
+      students.find(
+        (candidate) =>
+          candidate.id ===
+          form.id
+      );
+
+    if (!student) {
+      toast.error(
+        "Student record not found."
+      );
+      return;
+    }
+
     let status = "PASS";
 
-    if (Number(form.failedSubjects) >= 3) {
+    if (
+      failedSubjects >= 3
+    ) {
       status = "FAIL";
-    } else if (Number(form.failedSubjects) > 0) {
+    } else if (
+      failedSubjects > 0
+    ) {
       status = "ATKT";
     }
 
-    const semesterId = form.semester.replace(
-      /\s+/g,
-      ""
-    );
+    const semesterId =
+      form.semester.replace(
+        /\s+/g,
+        ""
+      );
 
     const data = {
-      studentName: form.studentName,
-      rollNo: form.rollNo,
-      department: form.department,
-      semester: form.semester,
-      sgpa: Number(form.sgpa),
-      cgpa: Number(form.cgpa),
-      percentage: Number(form.percentage),
-      failedSubjects: Number(form.failedSubjects) || 0,
+      studentName:
+        student.name || "",
+
+      rollNo:
+        student.rollNo || "",
+
+      department:
+        student.department || "",
+
+      semester:
+        form.semester,
+
+      sgpa,
+
+      cgpa,
+
+      percentage,
+
+      failedSubjects,
+
       status,
     };
 
     try {
-     // Create/update the parent result document.
-// This makes the student visible in the Admin Results list.
-await setDoc(
-  doc(
-    db,
-    "results",
-    form.id
-  ),
-  {
-    studentUid: form.id,
-    studentName: form.studentName,
-    rollNo: form.rollNo,
-    department: form.department,
-    currentSemester: form.semester,
-    updatedAt: new Date(),
-  },
-  { merge: true }
-);
-
-// Create/update the actual semester result.
-await setDoc(
-  doc(
-    db,
-    "results",
-    form.id,
-    "semesters",
-    semesterId
-  ),
-  data,
-  { merge: true }
-);
+      await setDoc(
+        doc(
+          db,
+          "results",
+          form.id,
+          "semesters",
+          semesterId
+        ),
+        data,
+        {
+          merge: true,
+        }
+      );
 
       toast.success(
         editing
@@ -290,19 +515,32 @@ await setDoc(
       );
 
       resetForm();
-      fetchResults();
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to save result.");
+
+      await loadData();
+    } catch (error) {
+      console.error(
+        "Failed to save result:",
+        error
+      );
+
+      toast.error(
+        error?.message ||
+          "Failed to save result."
+      );
     }
   }
 
-  async function handleDelete(item) {
-    const confirmed = window.confirm(
-      `Delete ${item.semester} result for ${item.studentName}?`
-    );
+  async function handleDelete(
+    item
+  ) {
+    const confirmed =
+      window.confirm(
+        `Delete ${item.semester} result for ${item.studentName}?`
+      );
 
-    if (!confirmed) return;
+    if (!confirmed) {
+      return;
+    }
 
     try {
       await deleteDoc(
@@ -315,131 +553,169 @@ await setDoc(
         )
       );
 
-      toast.success("Result deleted.");
-      fetchResults();
-    } catch (err) {
-      console.error(err);
-      toast.error("Delete failed.");
+      toast.success(
+        "Result deleted."
+      );
+
+      await loadData();
+    } catch (error) {
+      console.error(
+        "Delete failed:",
+        error
+      );
+
+      toast.error(
+        "Delete failed."
+      );
     }
   }
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+
+      {/* HEADER */}
+
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+
         <div>
           <h1 className="text-3xl font-bold">
             Manage Results
           </h1>
 
-          <p className="text-gray-500 mt-2">
+          <p className="mt-2 text-gray-500">
             Add, update and manage student academic results
           </p>
         </div>
 
         <button
+          type="button"
           onClick={() => {
             setEditing(false);
-            setForm(emptyForm);
+            setForm(
+              emptyForm
+            );
             setShowForm(true);
           }}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl flex items-center gap-2"
+          className="flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-white hover:bg-blue-700"
         >
           <Plus size={18} />
           Add Result
         </button>
+
       </div>
 
-      {/* Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        <div className="bg-white rounded-2xl shadow-md p-6">
-          <div className="flex justify-between items-center">
+      {/* STATISTICS */}
+
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
+
+        <div className="rounded-2xl bg-white p-6 shadow-md">
+
+          <div className="flex items-center justify-between">
+
             <div>
               <p className="text-gray-500">
                 Total Results
               </p>
 
-              <h2 className="text-3xl font-bold mt-3">
+              <h2 className="mt-3 text-3xl font-bold">
                 {stats.total}
               </h2>
             </div>
 
-            <div className="bg-blue-100 p-4 rounded-xl">
+            <div className="rounded-xl bg-blue-100 p-4">
               <Users
                 size={30}
                 className="text-blue-600"
               />
             </div>
+
           </div>
+
         </div>
 
-        <div className="bg-white rounded-2xl shadow-md p-6">
-          <div className="flex justify-between items-center">
+        <div className="rounded-2xl bg-white p-6 shadow-md">
+
+          <div className="flex items-center justify-between">
+
             <div>
               <p className="text-gray-500">
                 Pass
               </p>
 
-              <h2 className="text-3xl font-bold mt-3 text-green-600">
+              <h2 className="mt-3 text-3xl font-bold text-green-600">
                 {stats.pass}
               </h2>
             </div>
 
-            <div className="bg-green-100 p-4 rounded-xl">
+            <div className="rounded-xl bg-green-100 p-4">
               <CheckCircle
                 size={30}
                 className="text-green-600"
               />
             </div>
+
           </div>
+
         </div>
 
-        <div className="bg-white rounded-2xl shadow-md p-6">
-          <div className="flex justify-between items-center">
+        <div className="rounded-2xl bg-white p-6 shadow-md">
+
+          <div className="flex items-center justify-between">
+
             <div>
               <p className="text-gray-500">
                 Fail
               </p>
 
-              <h2 className="text-3xl font-bold mt-3 text-red-600">
+              <h2 className="mt-3 text-3xl font-bold text-red-600">
                 {stats.fail}
               </h2>
             </div>
 
-            <div className="bg-red-100 p-4 rounded-xl">
+            <div className="rounded-xl bg-red-100 p-4">
               <XCircle
                 size={30}
                 className="text-red-600"
               />
             </div>
+
           </div>
+
         </div>
 
-        <div className="bg-white rounded-2xl shadow-md p-6">
-          <div className="flex justify-between items-center">
+        <div className="rounded-2xl bg-white p-6 shadow-md">
+
+          <div className="flex items-center justify-between">
+
             <div>
               <p className="text-gray-500">
                 ATKT
               </p>
 
-              <h2 className="text-3xl font-bold mt-3 text-yellow-600">
+              <h2 className="mt-3 text-3xl font-bold text-yellow-600">
                 {stats.atkt}
               </h2>
             </div>
 
-            <div className="bg-yellow-100 p-4 rounded-xl">
+            <div className="rounded-xl bg-yellow-100 p-4">
               <AlertTriangle
                 size={30}
                 className="text-yellow-600"
               />
             </div>
+
           </div>
+
         </div>
+
       </div>
 
-      {/* Search + Form */}
-      <div className="bg-white rounded-2xl shadow-md p-6">
+      {/* SEARCH + FORM */}
+
+      <div className="rounded-2xl bg-white p-6 shadow-md">
+
         <div className="relative">
+
           <Search
             size={18}
             className="absolute left-3 top-3 text-gray-400"
@@ -450,15 +726,20 @@ await setDoc(
             placeholder="Search by Student Name or Roll No"
             value={search}
             onChange={(e) =>
-              setSearch(e.target.value)
+              setSearch(
+                e.target.value
+              )
             }
-            className="w-full border rounded-xl pl-10 pr-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none"
+            className="w-full rounded-xl border py-3 pl-10 pr-4 outline-none focus:ring-2 focus:ring-blue-500"
           />
+
         </div>
 
         {showForm && (
           <div className="mt-8 border-t pt-8">
-            <div className="flex justify-between items-center mb-6">
+
+            <div className="mb-6 flex items-center justify-between">
+
               <h2 className="text-2xl font-bold">
                 {editing
                   ? "Edit Result"
@@ -466,148 +747,244 @@ await setDoc(
               </h2>
 
               <button
-                onClick={resetForm}
+                type="button"
+                onClick={
+                  resetForm
+                }
                 className="text-gray-500 hover:text-red-500"
               >
                 <X size={22} />
               </button>
+
             </div>
 
-            <div className="grid md:grid-cols-2 gap-4">
-              {/* Student */}
+            <div className="grid gap-4 md:grid-cols-2">
+
+              {/* STUDENT */}
+
               <select
-                disabled={editing}
-                value={form.id}
-                onChange={(e) =>
-                  selectStudent(e.target.value)
+                disabled={
+                  editing
                 }
-                className="border rounded-xl p-3"
+                value={
+                  form.id
+                }
+                onChange={(e) =>
+                  selectStudent(
+                    e.target.value
+                  )
+                }
+                className="rounded-xl border p-3"
               >
+
                 <option value="">
                   Select Student
                 </option>
 
-                {students.map((student) => (
-                  <option
-                    key={student.id}
-                    value={student.id}
-                  >
-                    {student.name} ({student.rollNo})
-                  </option>
-                ))}
+                {students.map(
+                  (student) => (
+                    <option
+                      key={
+                        student.id
+                      }
+                      value={
+                        student.id
+                      }
+                    >
+                      {student.name} (
+                      {student.rollNo}
+                      )
+                    </option>
+                  )
+                )}
+
               </select>
 
+              {/* NAME */}
+
               <input
-                value={form.studentName}
+                value={
+                  form.studentName
+                }
                 readOnly
                 placeholder="Student Name"
-                className="border rounded-xl p-3 bg-gray-100"
+                className="rounded-xl border bg-gray-100 p-3"
               />
 
+              {/* ROLL NO */}
+
               <input
-                value={form.rollNo}
+                value={
+                  form.rollNo
+                }
                 readOnly
                 placeholder="Roll Number"
-                className="border rounded-xl p-3 bg-gray-100"
+                className="rounded-xl border bg-gray-100 p-3"
               />
+
+              {/* DEPARTMENT */}
 
               <input
-                value={form.department}
+                value={
+                  form.department
+                }
                 readOnly
                 placeholder="Department"
-                className="border rounded-xl p-3 bg-gray-100"
+                className="rounded-xl border bg-gray-100 p-3"
               />
 
-              {/* Semester */}
+              {/* SEMESTER */}
+
               <select
-                value={form.semester}
+                value={
+                  form.semester
+                }
                 onChange={(e) =>
                   setForm({
                     ...form,
-                    semester: e.target.value,
+                    semester:
+                      e.target
+                        .value,
                   })
                 }
-                className="border rounded-xl p-3"
+                className="rounded-xl border p-3"
               >
-                {semesterOptions.map((sem) => (
-                  <option key={sem} value={sem}>
-                    {sem}
-                  </option>
-                ))}
+                {semesterOptions.map(
+                  (semester) => (
+                    <option
+                      key={
+                        semester
+                      }
+                      value={
+                        semester
+                      }
+                    >
+                      {semester}
+                    </option>
+                  )
+                )}
               </select>
 
               {/* SGPA */}
+
               <input
                 type="number"
                 step="0.01"
                 min="0"
                 max="10"
                 placeholder="SGPA"
-                value={form.sgpa}
+                value={
+                  form.sgpa
+                }
                 onChange={(e) =>
                   setForm({
                     ...form,
-                    sgpa: e.target.value,
+                    sgpa:
+                      e.target
+                        .value,
                   })
                 }
-                className="border rounded-xl p-3"
+                className="rounded-xl border p-3"
               />
 
               {/* CGPA */}
+
               <input
                 type="number"
                 step="0.01"
                 min="0"
                 max="10"
                 placeholder="CGPA"
-                value={form.cgpa}
+                value={
+                  form.cgpa
+                }
                 onChange={(e) =>
                   setForm({
                     ...form,
-                    cgpa: e.target.value,
+                    cgpa:
+                      e.target
+                        .value,
                   })
                 }
-                className="border rounded-xl p-3"
+                className="rounded-xl border p-3"
               />
 
-              {/* Percentage */}
+              {/* PERCENTAGE */}
+
               <input
                 type="number"
                 step="0.01"
                 min="0"
                 max="100"
                 placeholder="Percentage"
-                value={form.percentage}
+                value={
+                  form.percentage
+                }
                 onChange={(e) =>
                   setForm({
                     ...form,
-                    percentage: e.target.value,
+                    percentage:
+                      e.target
+                        .value,
                   })
                 }
-                className="border rounded-xl p-3"
+                className="rounded-xl border p-3"
               />
 
-              {/* Failed Subjects */}
+              {/* FAILED SUBJECTS */}
+
               <input
                 type="number"
                 min="0"
                 placeholder="Failed Subjects"
-                value={form.failedSubjects}
+                value={
+                  form.failedSubjects
+                }
                 onChange={(e) =>
                   setForm({
                     ...form,
                     failedSubjects:
-                      Number(e.target.value) || 0,
+                      Number(
+                        e.target
+                          .value
+                      ) || 0,
                   })
                 }
-                className="border rounded-xl p-3"
+                className="rounded-xl border p-3"
               />
+
             </div>
 
-            <div className="flex gap-3 mt-8">
+            {/* AUTOMATIC STATUS */}
+
+            <div className="mt-4 rounded-xl bg-gray-50 p-4">
+
+              <p className="text-sm text-gray-500">
+                Status is calculated automatically:
+              </p>
+
+              <p className="mt-1 text-sm text-green-600">
+                0 failed subjects → PASS
+              </p>
+
+              <p className="text-sm text-yellow-600">
+                1–2 failed subjects → ATKT
+              </p>
+
+              <p className="text-sm text-red-600">
+                3+ failed subjects → FAIL
+              </p>
+
+            </div>
+
+            <div className="mt-8 flex gap-3">
+
               <button
-                onClick={handleSave}
-                className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl"
+                type="button"
+                onClick={
+                  handleSave
+                }
+                className="rounded-xl bg-green-600 px-6 py-3 text-white hover:bg-green-700"
               >
                 {editing
                   ? "Update Result"
@@ -615,19 +992,27 @@ await setDoc(
               </button>
 
               <button
-                onClick={resetForm}
-                className="bg-gray-300 hover:bg-gray-400 px-6 py-3 rounded-xl"
+                type="button"
+                onClick={
+                  resetForm
+                }
+                className="rounded-xl bg-gray-300 px-6 py-3 hover:bg-gray-400"
               >
                 Cancel
               </button>
+
             </div>
+
           </div>
         )}
+
       </div>
 
-      {/* Results Table */}
-      <div className="bg-white rounded-2xl shadow-md p-6">
-        <h2 className="text-2xl font-bold mb-6">
+      {/* RESULTS TABLE */}
+
+      <div className="rounded-2xl bg-white p-6 shadow-md">
+
+        <h2 className="mb-6 text-2xl font-bold">
           Student Results
         </h2>
 
@@ -635,123 +1020,174 @@ await setDoc(
           <div className="py-16 text-center text-gray-500">
             Loading Results...
           </div>
-        ) : filtered.length === 0 ? (
+        ) : filtered.length ===
+          0 ? (
           <div className="py-16 text-center text-gray-500">
             No Results Found
           </div>
         ) : (
           <div className="overflow-x-auto">
+
             <table className="w-full">
+
               <thead>
+
                 <tr className="border-b">
-                  <th className="text-left py-4">
+
+                  <th className="py-4 text-left">
                     Name
                   </th>
 
-                  <th className="text-left py-4">
+                  <th className="py-4 text-left">
                     Roll No
                   </th>
 
-                  <th className="text-left py-4">
+                  <th className="py-4 text-left">
                     Department
                   </th>
 
-                  <th className="text-left py-4">
+                  <th className="py-4 text-left">
                     Semester
                   </th>
 
-                  <th className="text-left py-4">
+                  <th className="py-4 text-left">
                     SGPA
                   </th>
 
-                  <th className="text-left py-4">
+                  <th className="py-4 text-left">
                     CGPA
                   </th>
 
-                  <th className="text-left py-4">
+                  <th className="py-4 text-left">
                     Status
                   </th>
 
-                  <th className="text-center py-4">
+                  <th className="py-4 text-center">
                     Actions
                   </th>
+
                 </tr>
+
               </thead>
 
               <tbody>
-                {filtered.map((item) => (
-                  <tr
-                    key={`${item.id}-${item.semesterId}`}
-                    className="border-b hover:bg-gray-50"
-                  >
-                    <td className="py-4">
-                      {item.studentName}
-                    </td>
 
-                    <td>
-                      {item.rollNo}
-                    </td>
+                {filtered.map(
+                  (item) => (
 
-                    <td>
-                      {item.department}
-                    </td>
+                    <tr
+                      key={`${item.id}-${item.semesterId}`}
+                      className="border-b hover:bg-gray-50"
+                    >
 
-                    <td>
-                      {item.semester}
-                    </td>
+                      <td className="py-4">
+                        {
+                          item.studentName
+                        }
+                      </td>
 
-                    <td>
-                      {item.sgpa}
-                    </td>
+                      <td>
+                        {
+                          item.rollNo
+                        }
+                      </td>
 
-                    <td>
-                      {item.cgpa}
-                    </td>
+                      <td>
+                        {
+                          item.department
+                        }
+                      </td>
 
-                    <td>
-                      <span
-                        className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                          item.status === "PASS"
-                            ? "bg-green-100 text-green-700"
-                            : item.status === "FAIL"
-                            ? "bg-red-100 text-red-700"
-                            : "bg-yellow-100 text-yellow-700"
-                        }`}
-                      >
-                        {item.status}
-                      </span>
-                    </td>
+                      <td>
+                        {
+                          item.semester
+                        }
+                      </td>
 
-                    <td>
-                      <div className="flex justify-center gap-3">
-                        <button
-                          onClick={() =>
-                            handleEdit(item)
-                          }
-                          className="text-blue-600 hover:text-blue-800"
-                          title="Edit Result"
+                      <td>
+                        {
+                          item.sgpa
+                        }
+                      </td>
+
+                      <td>
+                        {
+                          item.cgpa
+                        }
+                      </td>
+
+                      <td>
+
+                        <span
+                          className={`rounded-full px-3 py-1 text-sm font-semibold ${
+                            item.status ===
+                            "PASS"
+                              ? "bg-green-100 text-green-700"
+                              : item.status ===
+                                "FAIL"
+                              ? "bg-red-100 text-red-700"
+                              : "bg-yellow-100 text-yellow-700"
+                          }`}
                         >
-                          <Pencil size={18} />
-                        </button>
-
-                        <button
-                          onClick={() =>
-                            handleDelete(item)
+                          {
+                            item.status
                           }
-                          className="text-red-600 hover:text-red-800"
-                          title="Delete Result"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                        </span>
+
+                      </td>
+
+                      <td>
+
+                        <div className="flex justify-center gap-3">
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleEdit(
+                                item
+                              )
+                            }
+                            className="text-blue-600 hover:text-blue-800"
+                            title="Edit Result"
+                          >
+                            <Pencil
+                              size={18}
+                            />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleDelete(
+                                item
+                              )
+                            }
+                            className="text-red-600 hover:text-red-800"
+                            title="Delete Result"
+                          >
+                            <Trash2
+                              size={18}
+                            />
+                          </button>
+
+                        </div>
+
+                      </td>
+
+                    </tr>
+
+                  )
+                )}
+
               </tbody>
+
             </table>
+
           </div>
         )}
+
       </div>
+
     </div>
   );
 }

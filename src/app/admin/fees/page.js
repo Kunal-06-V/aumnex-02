@@ -42,16 +42,21 @@ export default function FeesPage() {
   const [fees, setFees] = useState([]);
   const [students, setStudents] = useState([]);
   const [filtered, setFiltered] = useState([]);
-  const [loading, setLoading] = useState(true);
 
-  const [search, setSearch] = useState("");
+  const [loading, setLoading] =
+    useState(true);
 
-  const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState(false);
+  const [search, setSearch] =
+    useState("");
 
-  const [form, setForm] = useState(
-    emptyForm
-  );
+  const [showForm, setShowForm] =
+    useState(false);
+
+  const [editing, setEditing] =
+    useState(false);
+
+  const [form, setForm] =
+    useState(emptyForm);
 
   useEffect(() => {
     fetchStudents();
@@ -59,7 +64,8 @@ export default function FeesPage() {
   }, []);
 
   useEffect(() => {
-    const text = search.toLowerCase();
+    const text =
+      search.toLowerCase().trim();
 
     setFiltered(
       fees.filter(
@@ -74,45 +80,20 @@ export default function FeesPage() {
     );
   }, [search, fees]);
 
-  async function fetchFees() {
-    setLoading(true);
-
-    try {
-      const snapshot = await getDocs(
-        collection(db, "fees")
-      );
-
-      const data = snapshot.docs.map(
-        (feeDoc) => ({
-          id: feeDoc.id,
-          ...feeDoc.data(),
-        })
-      );
-
-      setFees(data);
-      setFiltered(data);
-    } catch (err) {
-      console.error(err);
-      toast.error(
-        "Failed to load fee records."
-      );
-    }
-
-    setLoading(false);
-  }
-
   async function fetchStudents() {
     try {
-      const snapshot = await getDocs(
-        collection(db, "students")
-      );
+      const snapshot =
+        await getDocs(
+          collection(db, "students")
+        );
 
-      const data = snapshot.docs.map(
-        (studentDoc) => ({
-          id: studentDoc.id,
-          ...studentDoc.data(),
-        })
-      );
+      const data =
+        snapshot.docs.map(
+          (studentDoc) => ({
+            id: studentDoc.id,
+            ...studentDoc.data(),
+          })
+        );
 
       data.sort((a, b) =>
         (a.name || "").localeCompare(
@@ -122,10 +103,106 @@ export default function FeesPage() {
 
       setStudents(data);
     } catch (err) {
-      console.error(err);
+      console.error(
+        "Failed to load students:",
+        err
+      );
+
       toast.error(
         "Failed to load students."
       );
+    }
+  }
+
+  async function fetchFees() {
+    setLoading(true);
+
+    try {
+      const snapshot =
+        await getDocs(
+          collection(db, "fees")
+        );
+
+      const rawFees =
+        snapshot.docs.map(
+          (feeDoc) => ({
+            id: feeDoc.id,
+            ...feeDoc.data(),
+          })
+        );
+
+      /*
+       * Resolve student identity from the
+       * authoritative Students collection.
+       *
+       * Priority:
+       * 1. fee.studentUid
+       * 2. fee.id if it matches a student
+       *
+       * The displayed Roll No is therefore
+       * not trusted from stale fee data.
+       */
+
+      const normalizedFees =
+        rawFees.map((fee) => {
+          const linkedStudent =
+            students.find(
+              (student) =>
+                student.id ===
+                  fee.studentUid ||
+                student.id === fee.id
+            );
+
+          if (!linkedStudent) {
+            return fee;
+          }
+
+          return {
+            ...fee,
+
+            studentUid:
+              linkedStudent.id,
+
+            studentName:
+              linkedStudent.name ||
+              fee.studentName ||
+              "",
+
+            rollNo:
+              linkedStudent.rollNo ||
+              fee.rollNo ||
+              "",
+
+            department:
+              linkedStudent.department ||
+              fee.department ||
+              "",
+
+            semester:
+              linkedStudent.semester ||
+              fee.semester ||
+              "",
+          };
+        });
+
+      setFees(
+        normalizedFees
+      );
+
+      setFiltered(
+        normalizedFees
+      );
+    } catch (err) {
+      console.error(
+        "Failed to load fees:",
+        err
+      );
+
+      toast.error(
+        "Failed to load fee records."
+      );
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -135,26 +212,35 @@ export default function FeesPage() {
     setForm(emptyForm);
   }
 
-  function selectStudent(studentId) {
-    const student = students.find(
-      (item) => item.id === studentId
-    );
+  function selectStudent(studentUid) {
+    const student =
+      students.find(
+        (item) =>
+          item.id === studentUid
+      );
 
-    if (!student) return;
-
-    const studentUid =
-      student.uid || student.id;
+    if (!student) {
+      return;
+    }
 
     setForm((prev) => ({
       ...prev,
-      id: student.id,
-      studentUid,
+
+      studentUid:
+        student.id,
+
+      id:
+        prev.id || student.id,
+
       studentName:
         student.name || "",
+
       rollNo:
         student.rollNo || "",
+
       department:
         student.department || "",
+
       semester:
         student.semester || "",
     }));
@@ -162,24 +248,41 @@ export default function FeesPage() {
 
   async function handleSave() {
     if (
-      !form.id ||
       !form.studentUid ||
       !form.studentName
     ) {
       toast.error(
-        "Please select a valid student."
+        "Student is required."
       );
       return;
     }
 
     try {
-      const total = Number(
-        form.totalFees
-      );
+      const total =
+        Number(form.totalFees);
 
-      const paid = Number(
-        form.paidFees
-      );
+      const paid =
+        Number(form.paidFees);
+
+      if (
+        !Number.isFinite(total) ||
+        total <= 0
+      ) {
+        toast.error(
+          "Total fees must be greater than 0."
+        );
+        return;
+      }
+
+      if (
+        !Number.isFinite(paid) ||
+        paid < 0
+      ) {
+        toast.error(
+          "Paid fees cannot be negative."
+        );
+        return;
+      }
 
       if (paid > total) {
         toast.error(
@@ -192,18 +295,49 @@ export default function FeesPage() {
         total - paid;
 
       const percentagePaid =
-        total > 0
-          ? Math.round(
-              (paid / total) * 100
-            )
-          : 0;
+        Math.round(
+          (paid / total) * 100
+        );
 
       const status =
         pending === 0
           ? "Paid"
           : paid === 0
-          ? "Pending"
-          : "Partial";
+            ? "Pending"
+            : "Partial";
+
+      const data = {
+        studentUid:
+          form.studentUid,
+
+        studentName:
+          form.studentName,
+
+        rollNo:
+          form.rollNo,
+
+        department:
+          form.department,
+
+        semester:
+          form.semester,
+
+        totalFees:
+          total,
+
+        paidFees:
+          paid,
+
+        pendingFees:
+          pending,
+
+        dueDate:
+          form.dueDate || "",
+
+        percentagePaid,
+
+        status,
+      };
 
       if (editing) {
         await updateDoc(
@@ -212,25 +346,7 @@ export default function FeesPage() {
             "fees",
             form.id
           ),
-          {
-            studentUid:
-              form.studentUid,
-            studentName:
-              form.studentName,
-            rollNo:
-              form.rollNo,
-            department:
-              form.department,
-            semester:
-              form.semester,
-            totalFees: total,
-            paidFees: paid,
-            pendingFees: pending,
-            percentagePaid,
-            dueDate:
-              form.dueDate || "",
-            status,
-          }
+          data
         );
 
         toast.success(
@@ -241,28 +357,10 @@ export default function FeesPage() {
           doc(
             db,
             "fees",
-            form.id
+            form.id ||
+              form.studentUid
           ),
-          {
-            id: form.id,
-            studentUid:
-              form.studentUid,
-            studentName:
-              form.studentName,
-            rollNo:
-              form.rollNo,
-            department:
-              form.department,
-            semester:
-              form.semester,
-            totalFees: total,
-            paidFees: paid,
-            pendingFees: pending,
-            percentagePaid,
-            dueDate:
-              form.dueDate || "",
-            status,
-          }
+          data
         );
 
         toast.success(
@@ -271,12 +369,16 @@ export default function FeesPage() {
       }
 
       resetForm();
-      fetchFees();
+      await fetchFees();
     } catch (err) {
-      console.error(err);
+      console.error(
+        "Failed to save fee record:",
+        err
+      );
 
       toast.error(
-        "Failed to save fee record."
+        err?.message ||
+          "Failed to save fee record."
       );
     }
   }
@@ -295,13 +397,16 @@ export default function FeesPage() {
         doc(db, "fees", id)
       );
 
-      fetchFees();
-
       toast.success(
-        "Fee record deleted."
+        "Fee record deleted successfully."
       );
+
+      await fetchFees();
     } catch (err) {
-      console.error(err);
+      console.error(
+        "Failed to delete fee record:",
+        err
+      );
 
       toast.error(
         "Failed to delete fee record."
@@ -310,84 +415,113 @@ export default function FeesPage() {
   }
 
   function handleEdit(item) {
-    const matchedStudent =
+    /*
+     * Resolve the authoritative Student
+     * before opening the edit form.
+     */
+
+    const linkedStudent =
       students.find(
         (student) =>
-          student.uid ===
+          student.id ===
             item.studentUid ||
-          student.rollNo ===
-            item.rollNo &&
-            student.name ===
-              item.studentName
+          student.id === item.id
       );
-
-    const studentUid =
-      item.studentUid ||
-      matchedStudent?.uid ||
-      matchedStudent?.id ||
-      "";
 
     setEditing(true);
     setShowForm(true);
 
     setForm({
-      id: item.id || "",
-      studentUid,
+      id: item.id,
+
+      studentUid:
+        linkedStudent?.id ||
+        item.studentUid ||
+        "",
+
       studentName:
-        item.studentName || "",
+        linkedStudent?.name ||
+        item.studentName ||
+        "",
+
       rollNo:
-        item.rollNo || "",
+        linkedStudent?.rollNo ||
+        item.rollNo ||
+        "",
+
       department:
-        item.department || "",
+        linkedStudent?.department ||
+        item.department ||
+        "",
+
       semester:
-        item.semester || "",
+        linkedStudent?.semester ||
+        item.semester ||
+        "",
+
       totalFees:
-        item.totalFees ?? "",
+        item.totalFees ??
+        "",
+
       paidFees:
-        item.paidFees ?? "",
+        item.paidFees ??
+        "",
+
       pendingFees:
-        item.pendingFees ?? "",
+        item.pendingFees ??
+        "",
+
       dueDate:
-        item.dueDate || "",
+        item.dueDate ||
+        "",
+
       status:
-        item.status || "Pending",
+        item.status ||
+        "Pending",
     });
   }
 
   return (
     <div className="space-y-6">
+
       {/* HEADER */}
 
-      <div className="flex justify-between items-center">
+      <div className="flex items-center justify-between">
+
         <div>
           <h1 className="text-3xl font-bold">
             Manage Fees
           </h1>
 
           <p className="text-gray-500">
-            Add, edit and manage student fee
-            records
+            Add, edit and manage student fee records
           </p>
         </div>
 
         <button
+          type="button"
           onClick={() => {
             setEditing(false);
-            setForm(emptyForm);
+            setForm(
+              emptyForm
+            );
             setShowForm(true);
           }}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl flex items-center gap-2"
+          className="flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-white hover:bg-blue-700"
         >
           <Plus size={18} />
           Add Fees
         </button>
+
       </div>
 
       {/* FORM */}
 
       {showForm && (
-        <div className="bg-white rounded-2xl shadow-md p-6">
-          <div className="flex justify-between mb-6">
+        <div className="rounded-2xl bg-white p-6 shadow-md">
+
+          <div className="mb-6 flex justify-between">
+
             <h2 className="text-2xl font-bold">
               {editing
                 ? "Edit Fees"
@@ -395,24 +529,32 @@ export default function FeesPage() {
             </h2>
 
             <button
-              onClick={resetForm}
+              type="button"
+              onClick={
+                resetForm
+              }
+              className="text-gray-500 hover:text-red-500"
             >
               <X />
             </button>
+
           </div>
 
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid gap-4 md:grid-cols-2">
+
             {/* STUDENT */}
 
             <select
               disabled={editing}
-              value={form.id}
+              value={
+                form.studentUid
+              }
               onChange={(e) =>
                 selectStudent(
                   e.target.value
                 )
               }
-              className="border rounded-xl p-3"
+              className="rounded-xl border p-3"
             >
               <option value="">
                 Select Student
@@ -421,89 +563,93 @@ export default function FeesPage() {
               {students.map(
                 (student) => (
                   <option
-                    key={student.id}
-                    value={student.id}
+                    key={
+                      student.id
+                    }
+                    value={
+                      student.id
+                    }
                   >
                     {student.name} (
-                    {student.rollNo})
+                    {student.rollNo}
+                    )
                   </option>
                 )
               )}
+
             </select>
-
-            {/* STUDENT UID */}
-
-            <input
-              value={form.studentUid}
-              readOnly
-              placeholder="Student UID"
-              className="border rounded-xl p-3 bg-gray-100"
-            />
 
             {/* NAME */}
 
             <input
-              value={form.studentName}
+              value={
+                form.studentName
+              }
               readOnly
               placeholder="Student Name"
-              className="border rounded-xl p-3 bg-gray-100"
+              className="rounded-xl border bg-gray-100 p-3"
             />
 
-            {/* ROLL */}
+            {/* ROLL NO */}
 
             <input
-              value={form.rollNo}
+              value={
+                form.rollNo
+              }
               readOnly
               placeholder="Roll No"
-              className="border rounded-xl p-3 bg-gray-100"
+              className="rounded-xl border bg-gray-100 p-3"
             />
 
             {/* DEPARTMENT */}
 
             <input
-              value={form.department}
+              value={
+                form.department
+              }
               readOnly
               placeholder="Department"
-              className="border rounded-xl p-3 bg-gray-100"
-            />
-
-            {/* SEMESTER */}
-
-            <input
-              value={form.semester}
-              readOnly
-              placeholder="Semester"
-              className="border rounded-xl p-3 bg-gray-100"
+              className="rounded-xl border bg-gray-100 p-3"
             />
 
             {/* TOTAL */}
 
             <input
+              type="number"
+              min="1"
               placeholder="Total Fees"
-              value={form.totalFees}
+              value={
+                form.totalFees
+              }
               onChange={(e) =>
                 setForm({
                   ...form,
                   totalFees:
-                    e.target.value,
+                    e.target
+                      .value,
                 })
               }
-              className="border rounded-xl p-3"
+              className="rounded-xl border p-3"
             />
 
             {/* PAID */}
 
             <input
+              type="number"
+              min="0"
               placeholder="Paid Fees"
-              value={form.paidFees}
+              value={
+                form.paidFees
+              }
               onChange={(e) =>
                 setForm({
                   ...form,
                   paidFees:
-                    e.target.value,
+                    e.target
+                      .value,
                 })
               }
-              className="border rounded-xl p-3"
+              className="rounded-xl border p-3"
             />
 
             {/* PENDING */}
@@ -511,32 +657,29 @@ export default function FeesPage() {
             <input
               value={Math.max(
                 Number(
-                  form.totalFees || 0
+                  form.totalFees ||
+                    0
                 ) -
                   Number(
-                    form.paidFees || 0
+                    form.paidFees ||
+                      0
                   ),
                 0
               )}
               readOnly
               placeholder="Pending Fees"
-              className="border rounded-xl p-3 bg-gray-100"
+              className="rounded-xl border bg-gray-100 p-3"
             />
 
-            {/* DUE DATE */}
+            {/* SEMESTER */}
 
             <input
-              type="text"
-              placeholder="Due Date"
-              value={form.dueDate}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  dueDate:
-                    e.target.value,
-                })
+              value={
+                form.semester
               }
-              className="border rounded-xl p-3"
+              readOnly
+              placeholder="Semester"
+              className="rounded-xl border bg-gray-100 p-3"
             />
 
             {/* STATUS */}
@@ -545,27 +688,33 @@ export default function FeesPage() {
               readOnly
               value={
                 Number(
-                  form.totalFees || 0
+                  form.totalFees ||
+                    0
                 ) === 0
                   ? "Pending"
                   : Number(
-                      form.totalFees
-                    ) -
+                        form.totalFees
+                      ) -
                       Number(
                         form.paidFees
                       ) ===
                     0
-                  ? "Paid"
-                  : "Partial"
+                    ? "Paid"
+                    : "Partial"
               }
-              className="border rounded-xl p-3 bg-gray-100 md:col-span-2"
+              className="rounded-xl border bg-gray-100 p-3 md:col-span-2"
             />
+
           </div>
 
           <div className="mt-6 flex gap-3">
+
             <button
-              onClick={handleSave}
-              className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl"
+              type="button"
+              onClick={
+                handleSave
+              }
+              className="rounded-xl bg-green-600 px-6 py-3 text-white hover:bg-green-700"
             >
               {editing
                 ? "Update Fees"
@@ -573,19 +722,26 @@ export default function FeesPage() {
             </button>
 
             <button
-              onClick={resetForm}
-              className="bg-gray-300 hover:bg-gray-400 px-6 py-3 rounded-xl"
+              type="button"
+              onClick={
+                resetForm
+              }
+              className="rounded-xl bg-gray-300 px-6 py-3 hover:bg-gray-400"
             >
               Cancel
             </button>
+
           </div>
+
         </div>
       )}
 
-      {/* SEARCH + TABLE */}
+      {/* TABLE */}
 
-      <div className="bg-white rounded-2xl shadow-md p-5">
+      <div className="rounded-2xl bg-white p-5 shadow-md">
+
         <div className="relative mb-6">
+
           <Search
             size={18}
             className="absolute left-3 top-3 text-gray-400"
@@ -600,71 +756,85 @@ export default function FeesPage() {
                 e.target.value
               )
             }
-            className="w-full border rounded-xl pl-10 pr-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-xl border py-3 pl-10 pr-4 outline-none focus:ring-2 focus:ring-blue-500"
           />
+
         </div>
 
         {loading ? (
-          <p className="text-center py-10">
+          <p className="py-10 text-center">
             Loading Fees...
           </p>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-10">
+          <div className="py-10 text-center">
+
             <IndianRupee
               size={48}
-              className="mx-auto text-gray-400 mb-4"
+              className="mx-auto mb-4 text-gray-400"
             />
 
             <p>
               No Fee Records Found.
             </p>
+
           </div>
         ) : (
           <div className="overflow-x-auto">
+
             <table className="w-full">
+
               <thead className="bg-gray-100">
+
                 <tr>
-                  <th className="text-left p-4">
+
+                  <th className="p-4 text-left">
                     Student
                   </th>
 
-                  <th className="text-left p-4">
+                  <th className="p-4 text-left">
                     Roll No
                   </th>
 
-                  <th className="text-left p-4">
+                  <th className="p-4 text-left">
                     Semester
                   </th>
 
-                  <th className="text-left p-4">
+                  <th className="p-4 text-left">
                     Total
                   </th>
 
-                  <th className="text-left p-4">
+                  <th className="p-4 text-left">
                     Paid
                   </th>
 
-                  <th className="text-left p-4">
+                  <th className="p-4 text-left">
                     Pending
                   </th>
 
-                  <th className="text-left p-4">
+                  <th className="p-4 text-left">
                     Status
                   </th>
 
-                  <th className="text-center p-4">
+                  <th className="p-4 text-center">
                     Actions
                   </th>
+
                 </tr>
+
               </thead>
 
               <tbody>
+
                 {filtered.map(
                   (item) => (
+
                     <tr
-                      key={item.id}
+                      key={
+                        item.id
+                      }
                       className="border-b hover:bg-gray-50"
                     >
+
                       <td className="p-4 font-medium">
                         {item.studentName}
                       </td>
@@ -679,22 +849,29 @@ export default function FeesPage() {
 
                       <td className="p-4">
                         ₹
-                        {item.totalFees}
+                        {
+                          item.totalFees
+                        }
                       </td>
 
                       <td className="p-4">
                         ₹
-                        {item.paidFees}
+                        {
+                          item.paidFees
+                        }
                       </td>
 
                       <td className="p-4">
                         ₹
-                        {item.pendingFees}
+                        {
+                          item.pendingFees
+                        }
                       </td>
 
                       <td className="p-4">
+
                         <span
-                          className={`px-3 py-1 rounded-full text-sm ${
+                          className={`rounded-full px-3 py-1 text-sm ${
                             item.status ===
                             "Paid"
                               ? "bg-green-100 text-green-700"
@@ -704,19 +881,26 @@ export default function FeesPage() {
                               : "bg-red-100 text-red-700"
                           }`}
                         >
-                          {item.status}
+                          {
+                            item.status
+                          }
                         </span>
+
                       </td>
 
                       <td className="p-4">
+
                         <div className="flex justify-center gap-3">
+
                           <button
+                            type="button"
                             onClick={() =>
                               handleEdit(
                                 item
                               )
                             }
-                            className="bg-yellow-100 hover:bg-yellow-200 text-yellow-700 p-2 rounded-lg"
+                            className="rounded-lg bg-yellow-100 p-2 text-yellow-700 hover:bg-yellow-200"
+                            title="Edit Fees"
                           >
                             <Pencil
                               size={18}
@@ -724,27 +908,38 @@ export default function FeesPage() {
                           </button>
 
                           <button
+                            type="button"
                             onClick={() =>
                               handleDelete(
                                 item.id
                               )
                             }
-                            className="bg-red-100 hover:bg-red-200 text-red-700 p-2 rounded-lg"
+                            className="rounded-lg bg-red-100 p-2 text-red-700 hover:bg-red-200"
+                            title="Delete Fees"
                           >
                             <Trash2
                               size={18}
                             />
                           </button>
+
                         </div>
+
                       </td>
+
                     </tr>
+
                   )
                 )}
+
               </tbody>
+
             </table>
+
           </div>
         )}
+
       </div>
+
     </div>
   );
 }

@@ -97,48 +97,149 @@ export default function NotificationsPage() {
     setForm(emptyForm);
   }
 async function handleSave() {
-  if (!form.id || !form.title) {
-    toast.error("Notification ID and Title are required.");
+  const requiredFields = [
+    { key: "id", label: "Notification ID" },
+    { key: "title", label: "Title" },
+    { key: "message", label: "Message" },
+    { key: "date", label: "Date" },
+    { key: "department", label: "Department" },
+    { key: "semester", label: "Semester" },
+    { key: "division", label: "Division" },
+    { key: "target", label: "Target" },
+  ];
+
+  const missingField = requiredFields.find(
+    ({ key }) =>
+      !String(form[key] ?? "").trim()
+  );
+
+  if (missingField) {
+    toast.error(
+      `${missingField.label} is required.`
+    );
     return;
   }
 
+  const validTargets = [
+    "Students",
+    "Faculty",
+    "Everyone",
+  ];
+
+  if (!validTargets.includes(form.target)) {
+    toast.error(
+      "Please select a valid notification target."
+    );
+    return;
+  }
+
+  const validTypes = [
+    "General",
+    "Exam",
+    "Fees",
+    "Holiday",
+    "Event",
+  ];
+
+  if (!validTypes.includes(form.type)) {
+    toast.error(
+      "Please select a valid notification type."
+    );
+    return;
+  }
+
+  const validPriorities = [
+    "High",
+    "Medium",
+    "Low",
+  ];
+
+  if (!validPriorities.includes(form.priority)) {
+    toast.error(
+      "Please select a valid notification priority."
+    );
+    return;
+  }
+
+  const notificationData = {
+    title: form.title.trim(),
+    message: form.message.trim(),
+    type: form.type,
+    priority: form.priority,
+    date: form.date,
+    department: form.department.trim(),
+    semester: form.semester.trim(),
+    division: form.division.trim(),
+    target: form.target.trim(),
+    updatedAt: new Date().toISOString(),
+  };
+
   try {
     if (editing) {
-      await updateDoc(doc(db, "notifications", form.id), {
-        title: form.title,
-        message: form.message,
-        type: form.type,
-        priority: form.priority,
-        date: form.date,
-        department: form.department,
-        semester: form.semester,
-        division: form.division,
-        target: form.target,
-      });
-
-      toast.success("Notification updated successfully.");
-    } else {
-
-      const notificationData = {
-        ...form,
-        createdAt: new Date().toISOString(),
-        createdBy: "Administrator",
-      };
-
       await setDoc(
         doc(db, "notifications", form.id),
-        notificationData
+        notificationData,
+        { merge: true }
       );
 
-      toast.success("Notification added successfully.");
+      toast.success(
+        "Notification updated successfully."
+      );
+    } else {
+      const existingNotification =
+        notifications.find(
+          (item) =>
+            item.id === form.id.trim()
+        );
+
+      if (existingNotification) {
+        toast.error(
+          "A notification with this ID already exists."
+        );
+        return;
+      }
+
+      await setDoc(
+        doc(
+          db,
+          "notifications",
+          form.id.trim()
+        ),
+        {
+          ...notificationData,
+          id: form.id.trim(),
+          createdAt: new Date().toISOString(),
+          createdBy: "Administrator",
+        }
+      );
+
+      toast.success(
+        "Notification added successfully."
+      );
     }
 
     resetForm();
-    fetchNotifications();
-
+    await fetchNotifications();
   } catch (err) {
-    console.error(err);
-    toast.error("Failed to save notification.");
+    console.error(
+      "NOTIFICATION SAVE ERROR:",
+      err
+    );
+
+    console.error(
+      "ERROR CODE:",
+      err?.code
+    );
+
+    console.error(
+      "ERROR MESSAGE:",
+      err?.message
+    );
+
+    toast.error(
+      err?.message ||
+        "Failed to save notification."
+    );
   }
 }
 

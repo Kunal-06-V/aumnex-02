@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   Users,
   CalendarCheck,
+  History,
   GraduationCap,
   IndianRupee,
   CalendarDays,
@@ -39,6 +40,11 @@ const menuItems = [
     href: "/admin/attendance",
     icon: CalendarCheck,
   },
+  {
+  title: "Attendance History",
+  href: "/admin/attendance/history",
+  icon: History,
+},
   {
     title: "Results",
     href: "/admin/results",
