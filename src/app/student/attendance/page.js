@@ -36,14 +36,13 @@ export default function StudentAttendance() {
 
   const [subjects, setSubjects] = useState([]);
 
-  const [todayAttendance, setTodayAttendance] =
-    useState({
-      found: false,
-      subject: "",
-      status: "",
-      date: "",
-      time: "",
-    });
+  const [todayAttendance, setTodayAttendance] = useState({
+    found: false,
+    subject: "",
+    status: "",
+    date: "",
+    time: "",
+  });
 
   const [loading, setLoading] = useState(true);
 
@@ -61,9 +60,25 @@ export default function StudentAttendance() {
         let absent = 0;
         let leave = 0;
 
-        const today = new Date()
-          .toISOString()
-          .split("T")[0];
+        // Reset today's attendance every time the student changes
+        setTodayAttendance({
+          found: false,
+          subject: "",
+          status: "",
+          date: "",
+          time: "",
+        });
+
+        /*
+         * Use India time for "today".
+         * This prevents UTC date differences around midnight.
+         */
+        const today = new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Asia/Kolkata",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(new Date());
 
         const subjectMap = {};
 
@@ -75,194 +90,202 @@ export default function StudentAttendance() {
           docs: [],
         };
 
-        if (
-          student.semester &&
-          student.division
-        ) {
+        if (student.semester && student.division) {
           const sessionsQuery = query(
-            collection(
-              db,
-              "attendanceSessions"
-            ),
-            where(
-              "semester",
-              "==",
-              student.semester
-            ),
-            where(
-              "division",
-              "==",
-              student.division
-            )
+            collection(db, "attendanceSessions"),
+            where("semester", "==", student.semester),
+            where("division", "==", student.division)
           );
 
-          sessionsSnapshot =
-            await getDocs(
-              sessionsQuery
-            );
+          sessionsSnapshot = await getDocs(sessionsQuery);
         }
 
-        for (
-          const sessionDoc of
-            sessionsSnapshot.docs
-        ) {
+        /*
+         * Track the latest attendance found for today.
+         *
+         * This prevents an older session from overwriting
+         * a newer session when multiple sessions exist
+         * on the same day.
+         */
+        let latestTodayTime = 0;
+
+        for (const sessionDoc of sessionsSnapshot.docs) {
+          const isCurrentSession = sessionDoc.id === "current";
+
+          const session = sessionDoc.data();
+
           /*
-           * Temporary live NFC session.
-           * Never count it as historical attendance.
+           * Read ONLY this student's attendance document.
+           *
+           * This works for both:
+           *   attendanceSessions/current/students/{uid}
+           * and
+           *   attendanceSessions/{historicalSessionId}/students/{uid}
            */
-          if (
-            sessionDoc.id === "current"
-          ) {
+          const studentAttendanceRef = doc(
+            db,
+            "attendanceSessions",
+            sessionDoc.id,
+            "students",
+            student.uid
+          );
+
+          const studentAttendanceSnap = await getDoc(
+            studentAttendanceRef
+          );
+
+          if (!studentAttendanceSnap.exists()) {
             continue;
           }
 
-          const session =
-            sessionDoc.data();
-
-          /*
-           * Read ONLY this student's
-           * attendance document.
-           */
-          const studentAttendanceRef =
-            doc(
-              db,
-              "attendanceSessions",
-              sessionDoc.id,
-              "students",
-              student.uid
-            );
-
-          const studentAttendanceSnap =
-            await getDoc(
-              studentAttendanceRef
-            );
-
-          if (
-            !studentAttendanceSnap.exists()
-          ) {
-            continue;
-          }
-
-          const data =
-            studentAttendanceSnap.data();
+          const data = studentAttendanceSnap.data();
 
           /*
            * Defensive identity validation.
            */
-          if (
-            data.uid &&
-            data.uid !== student.uid
-          ) {
+          if (data.uid && data.uid !== student.uid) {
             continue;
           }
 
           /*
-           * Today's attendance
+           * -----------------------------------------
+           * TODAY'S ATTENDANCE
+           * -----------------------------------------
+           *
+           * IMPORTANT:
+           * The "current" live NFC session is allowed
+           * here so that the student immediately sees
+           * today's NFC attendance.
            */
-          if (
-            session.date === today
-          ) {
-            setTodayAttendance({
-              found: true,
-              subject:
-                session.subject ||
-                "Unknown",
-              status:
-                data.status ||
-                "Unknown",
-              date: session.date,
-              time: data.markedAt
-                ? data.markedAt
-                    .toDate()
-                    .toLocaleTimeString(
-                      [],
-                      {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      }
-                    )
-                : "",
-            });
+          if (session.date === today) {
+            let markedTime = 0;
+            let formattedTime = "";
+
+            if (
+              data.markedAt &&
+              typeof data.markedAt.toDate === "function"
+            ) {
+              const markedDate = data.markedAt.toDate();
+
+              markedTime = markedDate.getTime();
+
+              formattedTime = markedDate.toLocaleTimeString(
+                "en-IN",
+                {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: true,
+                  timeZone: "Asia/Kolkata",
+                }
+              );
+            } else if (session.startTime) {
+              const startDate =
+                typeof session.startTime.toDate === "function"
+                  ? session.startTime.toDate()
+                  : new Date(session.startTime);
+
+              if (!Number.isNaN(startDate.getTime())) {
+                markedTime = startDate.getTime();
+
+                formattedTime = startDate.toLocaleTimeString(
+                  "en-IN",
+                  {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: true,
+                    timeZone: "Asia/Kolkata",
+                  }
+                );
+              }
+            }
+
+            if (markedTime >= latestTodayTime) {
+              latestTodayTime = markedTime;
+
+              setTodayAttendance({
+                found: true,
+                subject: session.subject || "Unknown",
+                status: data.status || "Unknown",
+                date: session.date,
+                time: formattedTime,
+              });
+            }
           }
 
           /*
-           * Overall attendance
+           * -----------------------------------------
+           * HISTORICAL ATTENDANCE SUMMARY
+           * -----------------------------------------
+           *
+           * The "current" session is a live NFC session.
+           * Do NOT count it in overall/subject totals,
+           * otherwise the same attendance can be counted
+           * once from "current" and again after the
+           * historical session is created.
            */
-          if (
-            data.status === "Present"
-          ) {
-            present++;
-          } else if (
-            data.status === "Absent"
-          ) {
-            absent++;
-          } else if (
-            data.status === "Leave"
-          ) {
-            leave++;
-          }
+          if (!isCurrentSession) {
+            /*
+             * Overall attendance
+             */
+            if (data.status === "Present") {
+              present++;
+            } else if (data.status === "Absent") {
+              absent++;
+            } else if (data.status === "Leave") {
+              leave++;
+            }
 
-          /*
-           * Subject-wise attendance
-           */
-          const subject =
-            session.subject ||
-            "Unknown";
+            /*
+             * Subject-wise attendance
+             */
+            const subject = session.subject || "Unknown";
 
-          if (
-            !subjectMap[subject]
-          ) {
-            subjectMap[subject] = {
-              id: subject,
-              subject,
-              present: 0,
-              total: 0,
-            };
-          }
+            if (!subjectMap[subject]) {
+              subjectMap[subject] = {
+                id: subject,
+                subject,
+                present: 0,
+                total: 0,
+              };
+            }
 
-          subjectMap[
-            subject
-          ].total++;
+            subjectMap[subject].total++;
 
-          if (
-            data.status === "Present"
-          ) {
-            subjectMap[
-              subject
-            ].present++;
+            if (data.status === "Present") {
+              subjectMap[subject].present++;
+            }
           }
         }
 
-        const total =
-          present +
-          absent +
-          leave;
+        /*
+         * -----------------------------------------
+         * ATTENDANCE CALCULATION
+         * -----------------------------------------
+         */
+        const total = present + absent + leave;
 
         const percentage =
           total === 0
             ? 0
-            : Math.round(
-                (present / total) *
-                  100
-              );
+            : Math.round((present / total) * 100);
 
-        const subjectList =
-          Object.values(
-            subjectMap
-          ).map((item) => {
+        /*
+         * -----------------------------------------
+         * SUBJECT-WISE CALCULATION
+         * -----------------------------------------
+         */
+        const subjectList = Object.values(subjectMap).map(
+          (item) => {
             const percent =
               item.total === 0
                 ? 0
                 : Math.round(
-                    (item.present /
-                      item.total) *
-                      100
+                    (item.present / item.total) * 100
                   );
 
             return {
               ...item,
-              percentage:
-                percent,
+              percentage: percent,
               status:
                 percent >= 90
                   ? "Excellent"
@@ -270,8 +293,14 @@ export default function StudentAttendance() {
                   ? "Good"
                   : "Poor",
             };
-          });
+          }
+        );
 
+        /*
+         * -----------------------------------------
+         * SET STATE
+         * -----------------------------------------
+         */
         setAttendance({
           percentage,
           present,
@@ -286,9 +315,7 @@ export default function StudentAttendance() {
               : "Poor",
         });
 
-        setSubjects(
-          subjectList
-        );
+        setSubjects(subjectList);
       } catch (error) {
         console.error(
           "Student attendance error:",
@@ -302,38 +329,38 @@ export default function StudentAttendance() {
     loadAttendance();
   }, [student]);
 
-  /* -----------------------------------------
-     LOADING
-  ----------------------------------------- */
+  /*
+   * -----------------------------------------
+   * LOADING
+   * -----------------------------------------
+   */
 
   if (loading) {
     return (
       <div className="space-y-8">
         <div className="animate-pulse space-y-6">
-
           <div className="h-10 bg-gray-300 rounded w-64" />
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-            {[1, 2, 3, 4].map(
-              (i) => (
-                <div
-                  key={i}
-                  className="bg-white h-40 rounded-2xl shadow"
-                />
-              )
-            )}
+            {[1, 2, 3, 4].map((i) => (
+              <div
+                key={i}
+                className="bg-white h-40 rounded-2xl shadow"
+              />
+            ))}
           </div>
 
           <div className="bg-white rounded-2xl h-96 shadow" />
-
         </div>
       </div>
     );
   }
 
-  /* -----------------------------------------
-     PAGE
-  ----------------------------------------- */
+  /*
+   * -----------------------------------------
+   * PAGE
+   * -----------------------------------------
+   */
 
   return (
     <div className="space-y-8">
@@ -356,7 +383,7 @@ export default function StudentAttendance() {
 
       </div>
 
-      {/* TODAY */}
+      {/* TODAY'S ATTENDANCE */}
 
       <div className="bg-white rounded-2xl shadow-lg p-6">
 
@@ -394,11 +421,9 @@ export default function StudentAttendance() {
 
               <span
                 className={`inline-block mt-1 px-3 py-1 rounded-full text-sm font-semibold ${
-                  todayAttendance.status ===
-                  "Present"
+                  todayAttendance.status === "Present"
                     ? "bg-green-100 text-green-700"
-                    : todayAttendance.status ===
-                      "Absent"
+                    : todayAttendance.status === "Absent"
                     ? "bg-red-100 text-red-700"
                     : "bg-yellow-100 text-yellow-700"
                 }`}
@@ -413,8 +438,7 @@ export default function StudentAttendance() {
               </p>
 
               <p className="font-semibold mt-1">
-                {todayAttendance.time ||
-                  "--"}
+                {todayAttendance.time || "--"}
               </p>
             </div>
 
@@ -427,8 +451,7 @@ export default function StudentAttendance() {
             </p>
 
             <p className="text-gray-500 mt-2">
-              Your attendance has not been
-              recorded for today.
+              Your attendance has not been recorded for today.
             </p>
 
           </div>
@@ -439,6 +462,8 @@ export default function StudentAttendance() {
       {/* SUMMARY */}
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
+
+        {/* Overall */}
 
         <div className="bg-white rounded-2xl shadow-lg p-6">
 
@@ -465,6 +490,8 @@ export default function StudentAttendance() {
 
         </div>
 
+        {/* Present */}
+
         <div className="bg-white rounded-2xl shadow-lg p-6">
 
           <div className="flex justify-between items-center">
@@ -490,6 +517,8 @@ export default function StudentAttendance() {
 
         </div>
 
+        {/* Absent */}
+
         <div className="bg-white rounded-2xl shadow-lg p-6">
 
           <div className="flex justify-between items-center">
@@ -514,6 +543,8 @@ export default function StudentAttendance() {
           </div>
 
         </div>
+
+        {/* Status */}
 
         <div className="bg-white rounded-2xl shadow-lg p-6">
 
@@ -622,50 +653,46 @@ export default function StudentAttendance() {
             <tbody>
 
               {subjects.length > 0 ? (
-                subjects.map(
-                  (subject) => (
-                    <tr
-                      key={subject.id}
-                      className="border-b hover:bg-gray-50"
-                    >
+                subjects.map((subject) => (
+                  <tr
+                    key={subject.id}
+                    className="border-b hover:bg-gray-50"
+                  >
 
-                      <td className="p-4 font-medium">
-                        {subject.subject}
-                      </td>
+                    <td className="p-4 font-medium">
+                      {subject.subject}
+                    </td>
 
-                      <td className="text-center">
-                        {subject.present}
-                      </td>
+                    <td className="text-center">
+                      {subject.present}
+                    </td>
 
-                      <td className="text-center">
-                        {subject.total}
-                      </td>
+                    <td className="text-center">
+                      {subject.total}
+                    </td>
 
-                      <td className="text-center font-semibold text-blue-600">
-                        {subject.percentage}%
-                      </td>
+                    <td className="text-center font-semibold text-blue-600">
+                      {subject.percentage}%
+                    </td>
 
-                      <td className="text-center">
+                    <td className="text-center">
 
-                        <span
-                          className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                            subject.status ===
-                            "Excellent"
-                              ? "bg-green-100 text-green-700"
-                              : subject.status ===
-                                "Good"
-                              ? "bg-blue-100 text-blue-700"
-                              : "bg-yellow-100 text-yellow-700"
-                          }`}
-                        >
-                          {subject.status}
-                        </span>
+                      <span
+                        className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                          subject.status === "Excellent"
+                            ? "bg-green-100 text-green-700"
+                            : subject.status === "Good"
+                            ? "bg-blue-100 text-blue-700"
+                            : "bg-yellow-100 text-yellow-700"
+                        }`}
+                      >
+                        {subject.status}
+                      </span>
 
-                      </td>
+                    </td>
 
-                    </tr>
-                  )
-                )
+                  </tr>
+                ))
               ) : (
                 <tr>
 
