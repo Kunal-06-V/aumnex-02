@@ -1,5 +1,17 @@
-import { getApps, initializeApp, cert } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import {
+  getApps,
+  initializeApp,
+  cert,
+} from "firebase-admin/app";
+
+import {
+  getFirestore,
+} from "firebase-admin/firestore";
+
+import {
+  getAuth,
+} from "firebase-admin/auth";
+
 import serviceAccount from "../../firebase-service-account.json";
 
 const adminApp =
@@ -9,4 +21,8 @@ const adminApp =
       })
     : getApps()[0];
 
-export const adminDb = getFirestore(adminApp);
+export const adminDb =
+  getFirestore(adminApp);
+
+export const adminAuth =
+  getAuth(adminApp);

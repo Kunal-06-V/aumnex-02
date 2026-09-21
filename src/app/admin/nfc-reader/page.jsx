@@ -24,15 +24,18 @@ import {
   getDoc,
   onSnapshot,
   setDoc,
+  deleteDoc,
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
 import toast from "react-hot-toast";
 
 export default function NFCReaderPage() {
-  const [running, setRunning] = useState(false);
+  // =========================================================
+  // SESSION STATE
+  // =========================================================
 
-  const [lastStudent, setLastStudent] = useState(null);
+  const [running, setRunning] = useState(false);
 
   const [subject, setSubject] = useState("");
   const [faculty, setFaculty] = useState("");
@@ -40,33 +43,52 @@ export default function NFCReaderPage() {
   const [division, setDivision] = useState("");
   const [room, setRoom] = useState("");
 
+  // =========================================================
+  // MASTER DATA
+  // =========================================================
+
   const [subjects, setSubjects] = useState([]);
   const [faculties, setFaculties] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [semesters, setSemesters] = useState([]);
   const [divisions, setDivisions] = useState([]);
 
-  const [loadingOptions, setLoadingOptions] = useState(true);
-  const [optionsError, setOptionsError] = useState("");
+  // =========================================================
+  // UI STATE
+  // =========================================================
 
-  const [refreshing, setRefreshing] = useState(false);
+  const [loadingOptions, setLoadingOptions] =
+    useState(true);
 
-  /*
-   * Convert Firestore values into safe display strings.
-   */
+  const [optionsError, setOptionsError] =
+    useState("");
+
+  const [refreshing, setRefreshing] =
+    useState(false);
+
+  const [lastStudent, setLastStudent] =
+    useState(null);
+
+  // =========================================================
+  // HELPERS
+  // =========================================================
+
   function textValue(value) {
-    if (value === undefined || value === null) {
+    if (
+      value === undefined ||
+      value === null
+    ) {
       return "";
     }
 
     return String(value).trim();
   }
 
-  /*
-   * Pick a useful display value even if the existing
-   * Firestore collections use slightly different field names.
-   */
-  function getDisplayValue(data, fallbackId, type) {
+  function getDisplayValue(
+    data,
+    fallbackId,
+    type
+  ) {
     if (!data) {
       return fallbackId;
     }
@@ -98,6 +120,7 @@ export default function NFCReaderPage() {
         textValue(data.roomName) ||
         textValue(data.name) ||
         textValue(data.room) ||
+        textValue(data.number) ||
         fallbackId
       );
     }
@@ -110,9 +133,6 @@ export default function NFCReaderPage() {
     );
   }
 
-  /*
-   * Convert a Firestore timestamp/date/string into milliseconds.
-   */
   function getMillis(value) {
     if (!value) {
       return 0;
@@ -137,9 +157,6 @@ export default function NFCReaderPage() {
       : date.getTime();
   }
 
-  /*
-   * India local date.
-   */
   function getIndiaDate() {
     return new Intl.DateTimeFormat(
       "en-CA",
@@ -152,9 +169,6 @@ export default function NFCReaderPage() {
     ).format(new Date());
   }
 
-  /*
-   * Format Firestore timestamp for UI.
-   */
   function formatTime(value) {
     const millis = getMillis(value);
 
@@ -173,270 +187,11 @@ export default function NFCReaderPage() {
     );
   }
 
-  /*
-   * -----------------------------------------
-   * LOAD FORM OPTIONS
-   * -----------------------------------------
-   */
-  async function loadOptions() {
-    try {
-      setLoadingOptions(true);
-      setOptionsError("");
+  // =========================================================
+  // CLEAR LIVE/CURRENT NFC RECORDS
+  // =========================================================
 
-      const [
-        subjectsSnapshot,
-        facultySnapshot,
-        roomsSnapshot,
-        studentsSnapshot,
-      ] = await Promise.all([
-        getDocs(collection(db, "subjects")),
-        getDocs(collection(db, "faculty")),
-        getDocs(collection(db, "rooms")),
-        getDocs(collection(db, "students")),
-      ]);
-
-      /*
-       * SUBJECTS
-       */
-      const subjectList = subjectsSnapshot.docs
-        .map((item) => {
-          const data = item.data();
-
-          return {
-            id: item.id,
-            label: getDisplayValue(
-              data,
-              item.id,
-              "subject"
-            ),
-          };
-        })
-        .filter((item) => item.label)
-        .sort((a, b) =>
-          a.label.localeCompare(b.label)
-        );
-
-      /*
-       * FACULTY
-       */
-      const facultyList = facultySnapshot.docs
-        .map((item) => {
-          const data = item.data();
-
-          return {
-            id: item.id,
-            label: getDisplayValue(
-              data,
-              item.id,
-              "faculty"
-            ),
-          };
-        })
-        .filter((item) => item.label)
-        .sort((a, b) =>
-          a.label.localeCompare(b.label)
-        );
-
-      /*
-       * ROOMS
-       */
-      const roomList = roomsSnapshot.docs
-        .map((item) => {
-          const data = item.data();
-
-          return {
-            id: item.id,
-            label: getDisplayValue(
-              data,
-              item.id,
-              "room"
-            ),
-          };
-        })
-        .filter((item) => item.label)
-        .sort((a, b) =>
-          a.label.localeCompare(b.label)
-        );
-
-      /*
-       * SEMESTERS
-       */
-      const semesterSet = new Set();
-
-      /*
-       * DIVISIONS
-       */
-      const divisionSet = new Set();
-
-      studentsSnapshot.docs.forEach(
-        (studentDoc) => {
-          const data = studentDoc.data();
-
-          const studentSemester =
-            textValue(data.semester);
-
-          const studentDivision =
-            textValue(data.division);
-
-          if (studentSemester) {
-            semesterSet.add(studentSemester);
-          }
-
-          if (studentDivision) {
-            divisionSet.add(studentDivision);
-          }
-        }
-      );
-
-      const semesterList = Array.from(
-        semesterSet
-      ).sort((a, b) =>
-        a.localeCompare(b, undefined, {
-          numeric: true,
-        })
-      );
-
-      const divisionList = Array.from(
-        divisionSet
-      ).sort((a, b) =>
-        a.localeCompare(b)
-      );
-
-      setSubjects(subjectList);
-      setFaculties(facultyList);
-      setRooms(roomList);
-      setSemesters(semesterList);
-      setDivisions(divisionList);
-
-      /*
-       * Keep the currently active session values
-       * when the page is refreshed.
-       */
-      const currentRef = doc(
-        db,
-        "attendanceSessions",
-        "current"
-      );
-
-      const currentSnapshot =
-        await getDoc(currentRef);
-
-      if (currentSnapshot.exists()) {
-        const current =
-          currentSnapshot.data();
-
-        setSubject(
-          textValue(current.subject)
-        );
-
-        setFaculty(
-          textValue(current.faculty)
-        );
-
-        setSemester(
-          textValue(current.semester)
-        );
-
-        setDivision(
-          textValue(current.division)
-        );
-
-        setRoom(
-          textValue(current.room)
-        );
-
-        setRunning(
-          current.status === "active"
-        );
-      } else {
-        /*
-         * Select the first real Firestore option
-         * only when nothing has previously been set.
-         */
-        if (
-          !subject &&
-          subjectList.length > 0
-        ) {
-          setSubject(subjectList[0].label);
-        }
-
-        if (
-          !faculty &&
-          facultyList.length > 0
-        ) {
-          setFaculty(facultyList[0].label);
-        }
-
-        if (
-          !room &&
-          roomList.length > 0
-        ) {
-          setRoom(roomList[0].label);
-        }
-
-        if (
-          !semester &&
-          semesterList.length > 0
-        ) {
-          setSemester(semesterList[0]);
-        }
-
-        if (
-          !division &&
-          divisionList.length > 0
-        ) {
-          setDivision(divisionList[0]);
-        }
-
-        await setDoc(currentRef, {
-          subject: "",
-          faculty: "",
-          semester: "",
-          division: "",
-          room: "",
-          status: "inactive",
-          sessionId: null,
-          date: null,
-          startTime: null,
-          createdAt: new Date(),
-          present: 0,
-        });
-      }
-    } catch (error) {
-      console.error(
-        "Failed to load NFC options:",
-        error
-      );
-
-      setOptionsError(
-        "Unable to load attendance options from Firestore."
-      );
-    } finally {
-      setLoadingOptions(false);
-    }
-  }
-
-  /*
-   * -----------------------------------------
-   * INITIAL LOAD
-   * -----------------------------------------
-   */
-  useEffect(() => {
-    loadOptions();
-  }, []);
-
-  /*
-   * -----------------------------------------
-   * REAL-TIME CURRENT SESSION STUDENTS
-   * -----------------------------------------
-   *
-   * This replaces the old browser-based
-   * "Simulate NFC Scan" button.
-   *
-   * The Moto G84 writes the attendance through
-   * /api/nfc, and this page listens to Firestore.
-   */
-  useEffect(() => {
+  async function clearCurrentStudentRecords() {
     const studentsRef = collection(
       db,
       "attendanceSessions",
@@ -444,70 +199,429 @@ export default function NFCReaderPage() {
       "students"
     );
 
-    const unsubscribe = onSnapshot(
-      studentsRef,
-      (snapshot) => {
-        if (snapshot.empty) {
-          setLastStudent(null);
-          return;
-        }
+    const snapshot =
+      await getDocs(studentsRef);
 
-        const students = snapshot.docs
-          .map((studentDoc) => ({
-            id: studentDoc.id,
-            ...studentDoc.data(),
-          }))
-          .sort((a, b) => {
-            return (
-              getMillis(b.markedAt) -
-              getMillis(a.markedAt)
-            );
-          });
+    for (const studentDoc of snapshot.docs) {
+      await deleteDoc(studentDoc.ref);
+    }
 
-        const latest = students[0];
+    setLastStudent(null);
+  }
 
-        setLastStudent({
-          name:
-            latest.name || "Unknown",
-          rollNo:
-            latest.rollNo || "Unknown",
-          semester:
-            latest.semester ||
-            semester ||
-            "Unknown",
-          division:
-            latest.division ||
-            division ||
-            "Unknown",
-          subject:
-            subject ||
-            "Unknown",
-          status:
-            latest.status || "Unknown",
-          time:
-            formatTime(latest.markedAt),
-          uid:
-            latest.uid || latest.id,
-          sessionId:
-            latest.sessionId || "",
-        });
-      },
-      (error) => {
-        console.error(
-          "Live NFC listener error:",
-          error
+  // =========================================================
+  // LOAD MASTER DATA
+  // =========================================================
+
+  async function loadOptions() {
+    try {
+      setLoadingOptions(true);
+      setOptionsError("");
+
+      // -------------------------------------------------------
+      // ACADEMIC SETTINGS
+      // -------------------------------------------------------
+
+      const academicRef = doc(
+        db,
+        "academicSettings",
+        "master"
+      );
+
+      const academicSnap =
+        await getDoc(academicRef);
+
+      if (!academicSnap.exists()) {
+        throw new Error(
+          "Academic master data was not found."
         );
       }
-    );
 
-    return () => unsubscribe();
-  }, [subject, semester, division]);
+      const academicData =
+        academicSnap.data();
 
-  /*
-   * -----------------------------------------
-   * START ATTENDANCE
-   * -----------------------------------------
-   */
+      const loadedSemesters =
+        Array.isArray(
+          academicData.semesters
+        )
+          ? academicData.semesters
+              .filter(
+                (item) =>
+                  item &&
+                  item.active !== false
+              )
+              .sort(
+                (a, b) =>
+                  Number(a.number || 0) -
+                  Number(b.number || 0)
+              )
+              .map((item) => {
+                const value =
+                  textValue(item.name) ||
+                  `Semester ${item.number}`;
+
+                return {
+                  id:
+                    item.id ||
+                    `semester${item.number}`,
+                  value,
+                  label: value,
+                  number:
+                    item.number,
+                };
+              })
+          : [];
+
+      const loadedDivisions =
+        Array.isArray(
+          academicData.divisions
+        )
+          ? academicData.divisions
+              .filter(
+                (item) =>
+                  item &&
+                  item.active !== false
+              )
+              .map((item) => {
+                const value =
+                  textValue(item.id) ||
+                  textValue(item.value) ||
+                  textValue(item.name);
+
+                return {
+                  id: value,
+                  value,
+                  label:
+                    textValue(item.name) ||
+                    `Division ${value}`,
+                };
+              })
+          : [];
+
+      setSemesters(
+        loadedSemesters
+      );
+
+      setDivisions(
+        loadedDivisions
+      );
+
+      // -------------------------------------------------------
+      // SUBJECTS
+      // -------------------------------------------------------
+
+      const subjectSnap =
+        await getDocs(
+          collection(
+            db,
+            "subjects"
+          )
+        );
+
+      const loadedSubjects =
+        subjectSnap.docs
+          .map((item) => {
+            const data =
+              item.data();
+
+            const label =
+              getDisplayValue(
+                data,
+                item.id,
+                "subject"
+              );
+
+            return {
+              id: item.id,
+              value: label,
+              label,
+              ...data,
+            };
+          })
+          .filter(
+            (item) =>
+              item.active !== false
+          );
+
+      setSubjects(
+        loadedSubjects
+      );
+
+      // -------------------------------------------------------
+      // FACULTY
+      // -------------------------------------------------------
+
+      const facultySnap =
+        await getDocs(
+          collection(
+            db,
+            "faculty"
+          )
+        );
+
+      const loadedFaculty =
+        facultySnap.docs
+          .map((item) => {
+            const data =
+              item.data();
+
+            const label =
+              getDisplayValue(
+                data,
+                item.id,
+                "faculty"
+              );
+
+            return {
+              id: item.id,
+              value: label,
+              label,
+              ...data,
+            };
+          })
+          .filter(
+            (item) =>
+              item.active !== false
+          );
+
+      setFaculties(
+        loadedFaculty
+      );
+
+      // -------------------------------------------------------
+      // ROOMS
+      // -------------------------------------------------------
+
+      const roomSnap =
+        await getDocs(
+          collection(
+            db,
+            "rooms"
+          )
+        );
+
+      const loadedRooms =
+        roomSnap.docs
+          .map((item) => {
+            const data =
+              item.data();
+
+            const label =
+              getDisplayValue(
+                data,
+                item.id,
+                "room"
+              );
+
+            return {
+              id: item.id,
+              value: label,
+              label,
+              ...data,
+            };
+          })
+          .filter(
+            (item) =>
+              item.active !== false
+          );
+
+      setRooms(
+        loadedRooms
+      );
+
+      // -------------------------------------------------------
+      // CURRENT SESSION
+      // -------------------------------------------------------
+
+      const currentRef = doc(
+        db,
+        "attendanceSessions",
+        "current"
+      );
+
+      const currentSnap =
+        await getDoc(currentRef);
+
+      if (currentSnap.exists()) {
+        const current =
+          currentSnap.data();
+
+        setRunning(
+          current.status === "active"
+        );
+
+        if (
+          current.subject &&
+          current.subject !== "Not Selected"
+        ) {
+          setSubject(
+            current.subject
+          );
+        }
+
+        if (
+          current.faculty &&
+          current.faculty !== "Not Selected"
+        ) {
+          setFaculty(
+            current.faculty
+          );
+        }
+
+        if (
+          current.semester &&
+          current.semester !== "Not Selected"
+        ) {
+          setSemester(
+            current.semester
+          );
+        }
+
+        if (
+          current.division &&
+          current.division !== "Not Selected"
+        ) {
+          setDivision(
+            current.division
+          );
+        }
+
+        if (
+          current.room &&
+          current.room !== "Not Selected"
+        ) {
+          setRoom(
+            current.room
+          );
+        }
+      }
+    } catch (error) {
+      console.error(
+        "Failed to load NFC master data:",
+        error
+      );
+
+      const message =
+        error?.message ||
+        "Failed to load NFC reader data.";
+
+      setOptionsError(message);
+
+      toast.error(message);
+    } finally {
+      setLoadingOptions(false);
+    }
+  }
+
+  // =========================================================
+  // INITIAL LOAD
+  // =========================================================
+
+  useEffect(() => {
+    loadOptions();
+  }, []);
+
+  // =========================================================
+  // REAL-TIME CURRENT NFC STUDENT
+  // =========================================================
+
+  useEffect(() => {
+    const studentsRef =
+      collection(
+        db,
+        "attendanceSessions",
+        "current",
+        "students"
+      );
+
+    const unsubscribe =
+      onSnapshot(
+        studentsRef,
+        (snapshot) => {
+          if (snapshot.empty) {
+            setLastStudent(null);
+            return;
+          }
+
+          const students =
+            snapshot.docs
+              .map((studentDoc) => ({
+                id: studentDoc.id,
+                ...studentDoc.data(),
+              }))
+              .sort(
+                (a, b) =>
+                  getMillis(b.markedAt) -
+                  getMillis(a.markedAt)
+              );
+
+          const latest =
+            students[0];
+
+          setLastStudent({
+            name:
+              latest.name ||
+              "Unknown",
+
+            rollNo:
+              latest.rollNo ||
+              "Unknown",
+
+            subject:
+              subject ||
+              "Unknown",
+
+            semester:
+              semester ||
+              "Unknown",
+
+            division:
+              division ||
+              "Unknown",
+
+            room:
+              room ||
+              "Unknown",
+
+            status:
+              latest.status ||
+              "Unknown",
+
+            time:
+              formatTime(
+                latest.markedAt
+              ),
+
+            uid:
+              latest.uid ||
+              latest.id,
+
+            sessionId:
+              latest.sessionId ||
+              "",
+          });
+        },
+        (error) => {
+          console.error(
+            "Live NFC listener error:",
+            error
+          );
+        }
+      );
+
+    return () =>
+      unsubscribe();
+  }, [
+    subject,
+    semester,
+    division,
+    room,
+  ]);
+
+  // =========================================================
+  // START ATTENDANCE
+  // =========================================================
+
   async function startAttendance() {
     if (running) {
       toast.error(
@@ -554,10 +668,14 @@ export default function NFCReaderPage() {
     try {
       setRefreshing(true);
 
+      // Clear old live scan records.
+      await clearCurrentStudentRecords();
+
       const sessionId =
         crypto.randomUUID();
 
-      const now = new Date();
+      const now =
+        new Date();
 
       const date =
         getIndiaDate();
@@ -570,16 +688,24 @@ export default function NFCReaderPage() {
         ),
         {
           sessionId,
+
           date,
+
           subject,
+          faculty,
           semester,
           division,
-          faculty,
           room,
+
           status: "active",
+
+          attendanceMethod: "NFC",
+
           present: 0,
+
           createdAt: now,
           startTime: now,
+          updatedAt: now,
         }
       );
 
@@ -596,7 +722,7 @@ export default function NFCReaderPage() {
       );
 
       toast.error(
-        error.message ||
+        error?.message ||
           "Failed to start attendance."
       );
     } finally {
@@ -604,11 +730,10 @@ export default function NFCReaderPage() {
     }
   }
 
-  /*
-   * -----------------------------------------
-   * STOP ATTENDANCE
-   * -----------------------------------------
-   */
+  // =========================================================
+  // STOP ATTENDANCE
+  // =========================================================
+
   async function stopAttendance() {
     if (!running) {
       toast.error(
@@ -620,6 +745,8 @@ export default function NFCReaderPage() {
     try {
       setRefreshing(true);
 
+      await clearCurrentStudentRecords();
+
       await setDoc(
         doc(
           db,
@@ -628,6 +755,8 @@ export default function NFCReaderPage() {
         ),
         {
           status: "inactive",
+          present: 0,
+          updatedAt: new Date(),
         },
         {
           merge: true,
@@ -635,6 +764,7 @@ export default function NFCReaderPage() {
       );
 
       setRunning(false);
+      setLastStudent(null);
 
       toast.success(
         "Attendance session stopped."
@@ -646,7 +776,7 @@ export default function NFCReaderPage() {
       );
 
       toast.error(
-        error.message ||
+        error?.message ||
           "Failed to stop attendance."
       );
     } finally {
@@ -654,11 +784,10 @@ export default function NFCReaderPage() {
     }
   }
 
-  /*
-   * -----------------------------------------
-   * REFRESH OPTIONS
-   * -----------------------------------------
-   */
+  // =========================================================
+  // REFRESH OPTIONS
+  // =========================================================
+
   async function refreshOptions() {
     await loadOptions();
 
@@ -667,11 +796,10 @@ export default function NFCReaderPage() {
     );
   }
 
-  /*
-   * -----------------------------------------
-   * RENDER
-   * -----------------------------------------
-   */
+  // =========================================================
+  // RENDER
+  // =========================================================
+
   return (
     <div className="min-h-screen bg-gray-100 p-6">
 
@@ -684,6 +812,7 @@ export default function NFCReaderPage() {
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
 
             <div>
+
               <h1 className="text-3xl font-bold">
                 NFC Attendance Reader
               </h1>
@@ -691,6 +820,7 @@ export default function NFCReaderPage() {
               <p className="text-gray-500 mt-2">
                 Teacher Attendance Control Panel
               </p>
+
             </div>
 
             <div className="flex items-center gap-2">
@@ -715,7 +845,7 @@ export default function NFCReaderPage() {
 
         </div>
 
-        {/* LOADING / ERROR */}
+        {/* LOADING */}
 
         {loadingOptions && (
           <div className="bg-white rounded-2xl shadow-lg p-6 mb-6 flex items-center gap-3">
@@ -725,10 +855,14 @@ export default function NFCReaderPage() {
               size={20}
             />
 
-            Loading attendance options...
+            <span>
+              Loading attendance options...
+            </span>
 
           </div>
         )}
+
+        {/* ERROR */}
 
         {optionsError && (
           <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-6 mb-6">
@@ -739,22 +873,32 @@ export default function NFCReaderPage() {
 
             <button
               onClick={refreshOptions}
-              className="mt-4 inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl"
+              disabled={
+                loadingOptions ||
+                refreshing
+              }
+              className="mt-4 inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-4 py-2 rounded-xl"
             >
-              <RefreshCw size={17} />
+
+              <RefreshCw
+                size={17}
+              />
+
               Retry
+
             </button>
 
           </div>
         )}
 
-        {/* CONTROLS */}
+        {/* ATTENDANCE SESSION */}
 
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
 
           <div className="flex items-center justify-between mb-6">
 
             <div>
+
               <h2 className="text-xl font-bold">
                 Attendance Session
               </h2>
@@ -763,13 +907,19 @@ export default function NFCReaderPage() {
                 Configure the live class before scanning
                 student NFC cards.
               </p>
+
             </div>
 
             <button
               onClick={refreshOptions}
-              disabled={loadingOptions || refreshing}
+              disabled={
+                loadingOptions ||
+                refreshing ||
+                running
+              }
               className="inline-flex items-center gap-2 border border-gray-300 hover:bg-gray-50 disabled:opacity-50 px-4 py-2 rounded-xl"
             >
+
               <RefreshCw
                 size={17}
                 className={
@@ -778,7 +928,9 @@ export default function NFCReaderPage() {
                     : ""
                 }
               />
+
               Refresh
+
             </button>
 
           </div>
@@ -798,21 +950,28 @@ export default function NFCReaderPage() {
                 onChange={(e) =>
                   setSubject(e.target.value)
                 }
-                disabled={running}
+                disabled={
+                  running ||
+                  loadingOptions
+                }
                 className="w-full border rounded-xl p-3 bg-white disabled:bg-gray-100"
               >
+
                 <option value="">
                   Select Subject
                 </option>
 
-                {subjects.map((item) => (
-                  <option
-                    key={item.id}
-                    value={item.label}
-                  >
-                    {item.label}
-                  </option>
-                ))}
+                {subjects.map(
+                  (item) => (
+                    <option
+                      key={item.id}
+                      value={item.value}
+                    >
+                      {item.label}
+                    </option>
+                  )
+                )}
+
               </select>
 
             </div>
@@ -830,21 +989,28 @@ export default function NFCReaderPage() {
                 onChange={(e) =>
                   setFaculty(e.target.value)
                 }
-                disabled={running}
+                disabled={
+                  running ||
+                  loadingOptions
+                }
                 className="w-full border rounded-xl p-3 bg-white disabled:bg-gray-100"
               >
+
                 <option value="">
                   Select Faculty
                 </option>
 
-                {faculties.map((item) => (
-                  <option
-                    key={item.id}
-                    value={item.label}
-                  >
-                    {item.label}
-                  </option>
-                ))}
+                {faculties.map(
+                  (item) => (
+                    <option
+                      key={item.id}
+                      value={item.value}
+                    >
+                      {item.label}
+                    </option>
+                  )
+                )}
+
               </select>
 
             </div>
@@ -862,21 +1028,28 @@ export default function NFCReaderPage() {
                 onChange={(e) =>
                   setRoom(e.target.value)
                 }
-                disabled={running}
+                disabled={
+                  running ||
+                  loadingOptions
+                }
                 className="w-full border rounded-xl p-3 bg-white disabled:bg-gray-100"
               >
+
                 <option value="">
                   Select Room
                 </option>
 
-                {rooms.map((item) => (
-                  <option
-                    key={item.id}
-                    value={item.label}
-                  >
-                    {item.label}
-                  </option>
-                ))}
+                {rooms.map(
+                  (item) => (
+                    <option
+                      key={item.id}
+                      value={item.value}
+                    >
+                      {item.label}
+                    </option>
+                  )
+                )}
+
               </select>
 
             </div>
@@ -894,21 +1067,28 @@ export default function NFCReaderPage() {
                 onChange={(e) =>
                   setSemester(e.target.value)
                 }
-                disabled={running}
+                disabled={
+                  running ||
+                  loadingOptions
+                }
                 className="w-full border rounded-xl p-3 bg-white disabled:bg-gray-100"
               >
+
                 <option value="">
                   Select Semester
                 </option>
 
-                {semesters.map((item) => (
-                  <option
-                    key={item}
-                    value={item}
-                  >
-                    {item}
-                  </option>
-                ))}
+                {semesters.map(
+                  (item) => (
+                    <option
+                      key={item.id}
+                      value={item.value}
+                    >
+                      {item.label}
+                    </option>
+                  )
+                )}
+
               </select>
 
             </div>
@@ -926,21 +1106,28 @@ export default function NFCReaderPage() {
                 onChange={(e) =>
                   setDivision(e.target.value)
                 }
-                disabled={running}
+                disabled={
+                  running ||
+                  loadingOptions
+                }
                 className="w-full border rounded-xl p-3 bg-white disabled:bg-gray-100"
               >
+
                 <option value="">
                   Select Division
                 </option>
 
-                {divisions.map((item) => (
-                  <option
-                    key={item}
-                    value={item}
-                  >
-                    {item}
-                  </option>
-                ))}
+                {divisions.map(
+                  (item) => (
+                    <option
+                      key={item.id}
+                      value={item.value}
+                    >
+                      {item.label}
+                    </option>
+                  )
+                )}
+
               </select>
 
             </div>
@@ -960,8 +1147,13 @@ export default function NFCReaderPage() {
               }
               className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-xl flex items-center gap-2"
             >
-              <PlayCircle size={20} />
+
+              <PlayCircle
+                size={20}
+              />
+
               Start Attendance
+
             </button>
 
             <button
@@ -972,17 +1164,24 @@ export default function NFCReaderPage() {
               }
               className="bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-xl flex items-center gap-2"
             >
-              <Square size={20} />
+
+              <Square
+                size={20}
+              />
+
               Stop Attendance
+
             </button>
 
           </div>
 
         </div>
 
-        {/* PHYSICAL NFC STATUS */}
+        {/* NFC STATUS + LAST STUDENT */}
 
         <div className="grid lg:grid-cols-2 gap-6">
+
+          {/* PHYSICAL NFC STATUS */}
 
           <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
 
@@ -1011,9 +1210,11 @@ export default function NFCReaderPage() {
               />
 
               <h2 className="text-2xl font-bold">
+
                 {running
                   ? "Waiting for NFC Card..."
                   : "Attendance Stopped"}
+
               </h2>
 
             </div>
@@ -1056,7 +1257,9 @@ export default function NFCReaderPage() {
 
                 <div className="flex items-center gap-3">
 
-                  <User className="text-blue-600" />
+                  <User
+                    className="text-blue-600"
+                  />
 
                   <div>
 
@@ -1074,7 +1277,9 @@ export default function NFCReaderPage() {
 
                 <div className="flex items-center gap-3">
 
-                  <GraduationCap className="text-green-600" />
+                  <GraduationCap
+                    className="text-green-600"
+                  />
 
                   <div>
 
@@ -1092,7 +1297,9 @@ export default function NFCReaderPage() {
 
                 <div className="flex items-center gap-3">
 
-                  <BookOpen className="text-purple-600" />
+                  <BookOpen
+                    className="text-purple-600"
+                  />
 
                   <div>
 
@@ -1110,7 +1317,9 @@ export default function NFCReaderPage() {
 
                 <div className="flex items-center gap-3">
 
-                  <Users className="text-orange-600" />
+                  <Users
+                    className="text-orange-600"
+                  />
 
                   <div>
 
@@ -1128,7 +1337,9 @@ export default function NFCReaderPage() {
 
                 <div className="flex items-center gap-3">
 
-                  <GraduationCap className="text-indigo-600" />
+                  <GraduationCap
+                    className="text-indigo-600"
+                  />
 
                   <div>
 
@@ -1146,7 +1357,9 @@ export default function NFCReaderPage() {
 
                 <div className="flex items-center gap-3">
 
-                  <Building2 className="text-slate-600" />
+                  <Building2
+                    className="text-slate-600"
+                  />
 
                   <div>
 
@@ -1155,7 +1368,7 @@ export default function NFCReaderPage() {
                     </p>
 
                     <h3 className="font-bold">
-                      {room || "—"}
+                      {lastStudent.room}
                     </h3>
 
                   </div>
@@ -1164,7 +1377,9 @@ export default function NFCReaderPage() {
 
                 <div className="flex items-center gap-3">
 
-                  <CheckCircle className="text-green-600" />
+                  <CheckCircle
+                    className="text-green-600"
+                  />
 
                   <div>
 
@@ -1187,7 +1402,8 @@ export default function NFCReaderPage() {
                   </h3>
 
                   <p className="text-green-600 mt-1">
-                    {lastStudent.time || "Time unavailable"}
+                    {lastStudent.time ||
+                      "Time unavailable"}
                   </p>
 
                 </div>

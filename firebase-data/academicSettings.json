@@ -1,0 +1,73 @@
+{
+  "master": {
+    "department": "Computer Engineering",
+    "semesters": [
+      {
+        "id": "semester1",
+        "name": "Semester 1",
+        "number": 1,
+        "active": true
+      },
+      {
+        "id": "semester2",
+        "name": "Semester 2",
+        "number": 2,
+        "active": true
+      },
+      {
+        "id": "semester3",
+        "name": "Semester 3",
+        "number": 3,
+        "active": true
+      },
+      {
+        "id": "semester4",
+        "name": "Semester 4",
+        "number": 4,
+        "active": true
+      },
+      {
+        "id": "semester5",
+        "name": "Semester 5",
+        "number": 5,
+        "active": true
+      },
+      {
+        "id": "semester6",
+        "name": "Semester 6",
+        "number": 6,
+        "active": true
+      },
+      {
+        "id": "semester7",
+        "name": "Semester 7",
+        "number": 7,
+        "active": true
+      },
+      {
+        "id": "semester8",
+        "name": "Semester 8",
+        "number": 8,
+        "active": true
+      }
+    ],
+    "divisions": [
+      {
+        "id": "A",
+        "name": "Division A",
+        "active": true
+      },
+      {
+        "id": "B",
+        "name": "Division B",
+        "active": true
+      },
+      {
+        "id": "C",
+        "name": "Division C",
+        "active": true
+      }
+    ],
+    "active": true
+  }
+}

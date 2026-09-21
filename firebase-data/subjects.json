@@ -14,5 +14,9 @@
   "SUB004": {
     "name": "Java Programming",
     "code": "JAVA"
+  },
+  "SUB005": {
+    "name": "Cloud Computing",
+    "code": "CC"
   }
 }

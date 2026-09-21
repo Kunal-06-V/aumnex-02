@@ -12,18 +12,22 @@ admin.initializeApp({
 const db = getFirestore();
 
 /**
- * Recursively seed documents and subcollections
+ * Seed documents recursively.
  */
 async function seedDocuments(collectionRef, documents) {
   for (const [docId, docData] of Object.entries(documents)) {
     const { _subcollections, ...fields } = docData;
 
-    await collectionRef.doc(docId).set(fields, { merge: true });
+    await collectionRef.doc(docId).set(fields, {
+      merge: true,
+    });
 
     console.log(`✔ ${collectionRef.id}/${docId}`);
 
     if (_subcollections) {
-      for (const [subName, subDocs] of Object.entries(_subcollections)) {
+      for (const [subName, subDocs] of Object.entries(
+        _subcollections
+      )) {
         await seedDocuments(
           collectionRef.doc(docId).collection(subName),
           subDocs
@@ -33,6 +37,10 @@ async function seedDocuments(collectionRef, documents) {
   }
 }
 
+/**
+ * Seed one collection from:
+ * firebase-data/<collectionName>.json
+ */
 async function seedCollection(collectionName) {
   const file = path.join(
     __dirname,
@@ -42,7 +50,9 @@ async function seedCollection(collectionName) {
   );
 
   if (!(await fs.pathExists(file))) {
-    console.log(`⚠ ${collectionName}.json not found`);
+    console.log(
+      `⚠ ${collectionName}.json not found - skipping`
+    );
     return;
   }
 
@@ -50,27 +60,54 @@ async function seedCollection(collectionName) {
 
   console.log(`\n📦 Seeding ${collectionName}...`);
 
-  await seedDocuments(db.collection(collectionName), json);
+  await seedDocuments(
+    db.collection(collectionName),
+    json
+  );
 
   console.log(`✅ ${collectionName} completed`);
 }
 
+/**
+ * Main seeder.
+ *
+ * Run everything:
+ * node scripts/seedFirestore.js
+ *
+ * Run selected collections:
+ * node scripts/seedFirestore.js academicSettings
+ *
+ * Multiple collections:
+ * node scripts/seedFirestore.js academicSettings subjects
+ */
 async function main() {
-  console.log("\n🚀 Starting Firestore Seeder...\n");
+  console.log("\n🚀 Starting AUMNex Firestore Seeder...\n");
 
- const collections = [
-  "students",
-  "faculty",
-  "subjects",
-  "rooms",
-  "departments",
-  "results",
-  "fees",
-  "attendance",
-  "timetable",
-  "notifications",
-  "admin",
-];
+  const defaultCollections = [
+    "students",
+    "faculty",
+    "subjects",
+    "rooms",
+    "departments",
+    "results",
+    "fees",
+    "attendance",
+    "timetable",
+    "notifications",
+    "admin",
+    "academicSettings",
+  ];
+
+  const requestedCollections = process.argv.slice(2);
+
+  const collections =
+    requestedCollections.length > 0
+      ? requestedCollections
+      : defaultCollections;
+
+  console.log(
+    `Collections to seed: ${collections.join(", ")}\n`
+  );
 
   for (const collection of collections) {
     await seedCollection(collection);
@@ -79,7 +116,8 @@ async function main() {
   console.log("\n🎉 Firestore Seed Completed!\n");
 }
 
-main().catch((err) => {
-  console.error(err);
+main().catch((error) => {
+  console.error("\n❌ Seeder failed:");
+  console.error(error);
   process.exit(1);
 });

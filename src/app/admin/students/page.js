@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import {
   collection,
   getDocs,
-  getDoc,
   doc,
   setDoc,
   deleteDoc,
@@ -21,6 +20,10 @@ import {
   Pencil,
   Trash2,
   X,
+  CheckCircle2,
+  Clock3,
+  UserX,
+  Nfc,
 } from "lucide-react";
 
 import toast from "react-hot-toast";
@@ -35,11 +38,28 @@ const emptyForm = {
   phone: "",
   department: "",
   semester: "",
+  division: "",
+  status: "Pending",
+  nfcUid: "",
 };
 
 export default function StudentsPage() {
+  const router = useRouter();
+
+  // ============================================================
+  // DATA
+  // ============================================================
+
   const [students, setStudents] = useState([]);
   const [filtered, setFiltered] = useState([]);
+
+  const [departments, setDepartments] = useState([]);
+  const [semesters, setSemesters] = useState([]);
+  const [divisions, setDivisions] = useState([]);
+
+  // ============================================================
+  // UI STATE
+  // ============================================================
 
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -47,99 +67,237 @@ export default function StudentsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(false);
 
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] =
+    useState(emptyForm);
 
-  const router = useRouter();
-
-  /* -----------------------------------------
-     LOAD STUDENTS
-  ----------------------------------------- */
+  // ============================================================
+  // INITIAL LOAD
+  // ============================================================
 
   useEffect(() => {
-    fetchStudents();
+    loadPageData();
   }, []);
 
-  /* -----------------------------------------
-     SEARCH FILTER
-  ----------------------------------------- */
+  // ============================================================
+  // SEARCH
+  // ============================================================
 
   useEffect(() => {
-    const text = search.trim().toLowerCase();
+    const text =
+      search.trim().toLowerCase();
 
     setFiltered(
       students.filter((student) => {
-        const name = String(
-          student.name || ""
-        ).toLowerCase();
+        const fields = [
+          student.name,
+          student.rollNo,
+          student.prn,
+          student.email,
+          student.phone,
+          student.department,
+          student.semester,
+          student.division,
+          student.status,
+        ];
 
-        const rollNo = String(
-          student.rollNo || ""
-        ).toLowerCase();
-
-        const prn = String(
-          student.prn || ""
-        ).toLowerCase();
-
-        return (
-          name.includes(text) ||
-          rollNo.includes(text) ||
-          prn.includes(text)
+        return fields.some((field) =>
+          String(field || "")
+            .toLowerCase()
+            .includes(text)
         );
       })
     );
   }, [search, students]);
 
-  /* -----------------------------------------
-     FETCH STUDENTS
+  // ============================================================
+  // LOAD EVERYTHING
+  // ============================================================
 
-     IMPORTANT:
-     documentId = actual Firestore document ID
-     id         = student/business ID stored
-                  inside the document
-  ----------------------------------------- */
-
-  async function fetchStudents() {
+  async function loadPageData() {
     setLoading(true);
 
     try {
-      const snapshot = await getDocs(
-        collection(db, "students")
-      );
-
-      const data = snapshot.docs.map(
-        (studentDoc) => ({
-          ...studentDoc.data(),
-
-          // REAL Firestore document ID
-          documentId: studentDoc.id,
-        })
-      );
-
-      data.sort((a, b) =>
-        String(a.name || "").localeCompare(
-          String(b.name || "")
-        )
-      );
-
-      setStudents(data);
-      setFiltered(data);
-    } catch (err) {
+      await Promise.all([
+        fetchStudents(),
+        fetchDepartments(),
+        fetchAcademicSettings(),
+      ]);
+    } catch (error) {
       console.error(
-        "FETCH STUDENTS ERROR:",
-        err
+        "STUDENT PAGE LOAD ERROR:",
+        error
       );
 
       toast.error(
-        "Failed to load students."
+        "Failed to load student management data."
       );
     } finally {
       setLoading(false);
     }
   }
 
-  /* -----------------------------------------
-     RESET FORM
-  ----------------------------------------- */
+  // ============================================================
+  // FETCH STUDENTS
+  // ============================================================
+
+  async function fetchStudents() {
+    const snapshot =
+      await getDocs(
+        collection(db, "students")
+      );
+
+    const data =
+      snapshot.docs.map(
+        (studentDoc) => ({
+          ...studentDoc.data(),
+
+          // Real Firestore document ID.
+          documentId: studentDoc.id,
+        })
+      );
+
+    data.sort((a, b) =>
+      String(
+        a.name || ""
+      ).localeCompare(
+        String(b.name || "")
+      )
+    );
+
+    setStudents(data);
+    setFiltered(data);
+  }
+
+  // ============================================================
+  // FETCH DEPARTMENTS
+  // ============================================================
+
+  async function fetchDepartments() {
+    const snapshot =
+      await getDocs(
+        collection(
+          db,
+          "departments"
+        )
+      );
+
+    const data =
+      snapshot.docs.map(
+        (departmentDoc) => {
+          const item =
+            departmentDoc.data();
+
+          const value =
+            item.name ||
+            item.departmentName ||
+            item.title ||
+            departmentDoc.id;
+
+          return {
+            id: departmentDoc.id,
+            value: String(value).trim(),
+          };
+        }
+      );
+
+    setDepartments(data);
+  }
+
+  // ============================================================
+  // FETCH ACADEMIC MASTER DATA
+  // ============================================================
+
+  async function fetchAcademicSettings() {
+    const settingsRef =
+      doc(
+        db,
+        "academicSettings",
+        "master"
+      );
+
+    const settingsSnap =
+      await getDocs(
+        collection(
+          db,
+          "academicSettings"
+        )
+      );
+
+    // Prefer the actual "master" document.
+    const masterDoc =
+      settingsSnap.docs.find(
+        (item) =>
+          item.id === "master"
+      );
+
+    if (!masterDoc) {
+      setSemesters([]);
+      setDivisions([]);
+      return;
+    }
+
+    const data =
+      masterDoc.data();
+
+    const loadedSemesters =
+      Array.isArray(
+        data.semesters
+      )
+        ? data.semesters
+            .filter(
+              (item) =>
+                item &&
+                item.active !== false
+            )
+            .sort(
+              (a, b) =>
+                Number(a.number || 0) -
+                Number(b.number || 0)
+            )
+            .map((item) => ({
+              id:
+                item.id ||
+                `semester${item.number}`,
+              name:
+                item.name ||
+                `Semester ${item.number}`,
+              number:
+                item.number,
+            }))
+        : [];
+
+    const loadedDivisions =
+      Array.isArray(
+        data.divisions
+      )
+        ? data.divisions
+            .filter(
+              (item) =>
+                item &&
+                item.active !== false
+            )
+            .map((item) => ({
+              id:
+                item.id ||
+                item.value,
+              name:
+                item.name ||
+                `Division ${item.id || item.value}`,
+            }))
+        : [];
+
+    setSemesters(
+      loadedSemesters
+    );
+
+    setDivisions(
+      loadedDivisions
+    );
+  }
+
+  // ============================================================
+  // RESET
+  // ============================================================
 
   function resetForm() {
     setForm(emptyForm);
@@ -147,457 +305,24 @@ export default function StudentsPage() {
     setShowForm(false);
   }
 
-  /* -----------------------------------------
-     OPEN ADD FORM
-  ----------------------------------------- */
+  // ============================================================
+  // ADD
+  // ============================================================
 
   function openAddForm() {
     setEditing(false);
-    setForm(emptyForm);
+
+    setForm({
+      ...emptyForm,
+      status: "Active",
+    });
+
     setShowForm(true);
   }
 
-  /* -----------------------------------------
-     INPUT HANDLER
-  ----------------------------------------- */
-
-  function handleInputChange(
-    field,
-    value
-  ) {
-    setForm((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-  }
-
-  /* -----------------------------------------
-     SAVE STUDENT
-  ----------------------------------------- */
-
-  async function handleSave() {
-    /* -----------------------------------------
-       1. REQUIRED FIELDS
-    ----------------------------------------- */
-
-    const requiredFields = [
-      {
-        key: "id",
-        label: "Student ID",
-      },
-      {
-        key: "name",
-        label: "Student Name",
-      },
-      {
-        key: "rollNo",
-        label: "Roll No",
-      },
-      {
-        key: "prn",
-        label: "PRN",
-      },
-      {
-        key: "department",
-        label: "Department",
-      },
-      {
-        key: "semester",
-        label: "Semester",
-      },
-    ];
-
-    const missingField =
-      requiredFields.find(
-        ({ key }) =>
-          !String(
-            form[key] ?? ""
-          ).trim()
-      );
-
-    if (missingField) {
-      toast.error(
-        `${missingField.label} is required.`
-      );
-      return;
-    }
-
-    /* -----------------------------------------
-       2. NORMALIZE VALUES
-    ----------------------------------------- */
-
-    const studentId =
-      form.id.trim();
-
-    const name =
-      form.name.trim();
-
-    const rollNo =
-      form.rollNo.trim();
-
-    const prn =
-      form.prn.trim();
-
-    const email =
-      form.email.trim();
-
-    const phone =
-      form.phone.trim();
-
-    const department =
-      form.department.trim();
-
-    const semester =
-      form.semester.trim();
-
-    /* -----------------------------------------
-       3. EMAIL VALIDATION
-    ----------------------------------------- */
-
-    if (email) {
-      const emailRegex =
-        /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-      if (!emailRegex.test(email)) {
-        toast.error(
-          "Please enter a valid email address."
-        );
-        return;
-      }
-    }
-
-    /* -----------------------------------------
-       4. PHONE VALIDATION
-    ----------------------------------------- */
-
-    if (phone) {
-      const phoneRegex =
-        /^[6-9]\d{9}$/;
-
-      if (!phoneRegex.test(phone)) {
-        toast.error(
-          "Please enter a valid 10-digit Indian phone number."
-        );
-        return;
-      }
-    }
-
-    /* -----------------------------------------
-       5. DUPLICATE ROLL NO
-    ----------------------------------------- */
-
-    const normalizedRollNo =
-      rollNo.toLowerCase();
-
-    const duplicateRollNo =
-      students.find((student) => {
-        const existingRollNo =
-          String(
-            student.rollNo || ""
-          )
-            .trim()
-            .toLowerCase();
-
-        return (
-          student.documentId !==
-            form.documentId &&
-          existingRollNo ===
-            normalizedRollNo
-        );
-      });
-
-    if (duplicateRollNo) {
-      toast.error(
-        `Roll No ${rollNo} is already assigned to another student.`
-      );
-      return;
-    }
-
-    /* -----------------------------------------
-       6. DUPLICATE PRN
-    ----------------------------------------- */
-
-    const normalizedPrn =
-      prn.toLowerCase();
-
-    const duplicatePrn =
-      students.find((student) => {
-        const existingPrn =
-          String(
-            student.prn || ""
-          )
-            .trim()
-            .toLowerCase();
-
-        return (
-          student.documentId !==
-            form.documentId &&
-          existingPrn ===
-            normalizedPrn
-        );
-      });
-
-    if (duplicatePrn) {
-      toast.error(
-        `PRN ${prn} is already assigned to another student.`
-      );
-      return;
-    }
-
-    /* -----------------------------------------
-       7. STUDENT DATA
-    ----------------------------------------- */
-
-    const studentData = {
-      id: studentId,
-      name,
-      rollNo,
-      prn,
-      email,
-      phone,
-      department,
-      semester,
-      updatedAt:
-        new Date().toISOString(),
-    };
-
-    try {
-      /* -----------------------------------------
-         8. CHOOSE REAL FIRESTORE DOCUMENT ID
-      ----------------------------------------- */
-
-      const documentId = editing
-        ? form.documentId
-        : studentId;
-
-      if (!documentId) {
-        toast.error(
-          "Invalid student document ID."
-        );
-        return;
-      }
-
-      const studentRef = doc(
-        db,
-        "students",
-        documentId
-      );
-
-      /* -----------------------------------------
-         9. EDIT
-         
-         merge:true preserves existing fields
-         such as uid, role, division,
-         attendancePercentage, nfcUid,
-         fees data, etc.
-      ----------------------------------------- */
-
-      if (editing) {
-        await setDoc(
-          studentRef,
-          studentData,
-          {
-            merge: true,
-          }
-        );
-
-        toast.success(
-          "Student updated successfully."
-        );
-      }
-
-      /* -----------------------------------------
-         10. CREATE
-      ----------------------------------------- */
-
-      else {
-        await setDoc(
-          studentRef,
-          {
-            ...studentData,
-
-            role: "student",
-
-            status: "Active",
-
-            attendancePercentage: 0,
-
-            overallCGPA: 0,
-
-            totalFees: 0,
-
-            feesPaid: 0,
-
-            feesPending: 0,
-
-            profileImage: "",
-
-            nfcUid: "",
-
-            createdAt:
-              new Date().toISOString(),
-          }
-        );
-
-        toast.success(
-          "Student added successfully."
-        );
-      }
-
-      resetForm();
-
-      await fetchStudents();
-    } catch (err) {
-      console.error(
-        "STUDENT SAVE ERROR:",
-        err
-      );
-
-      console.error(
-        "ERROR CODE:",
-        err?.code
-      );
-
-      console.error(
-        "ERROR MESSAGE:",
-        err?.message
-      );
-
-      toast.error(
-        err?.message ||
-          "Failed to save student."
-      );
-    }
-  }
-
-  /* -----------------------------------------
-     DELETE STUDENT
-  ----------------------------------------- */
-
-  async function handleDelete(
-    documentId
-  ) {
-    if (!documentId) {
-      toast.error(
-        "Invalid student document ID."
-      );
-      return;
-    }
-
-    const confirmed =
-      window.confirm(
-        "Are you sure you want to delete this student?"
-      );
-
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      const studentRef = doc(
-        db,
-        "students",
-        documentId
-      );
-
-      /* -----------------------------------------
-         VERIFY DOCUMENT EXISTS FIRST
-      ----------------------------------------- */
-
-      const beforeDelete =
-        await getDoc(studentRef);
-
-      if (!beforeDelete.exists()) {
-        toast.error(
-          "Student document was not found."
-        );
-
-        await fetchStudents();
-
-        return;
-      }
-
-      /* -----------------------------------------
-         DELETE
-      ----------------------------------------- */
-
-      await deleteDoc(studentRef);
-
-      /* -----------------------------------------
-         VERIFY DELETE
-      ----------------------------------------- */
-
-      const afterDelete =
-        await getDoc(studentRef);
-
-      if (afterDelete.exists()) {
-        throw new Error(
-          "Student delete verification failed."
-        );
-      }
-
-      /* -----------------------------------------
-         REMOVE FROM UI IMMEDIATELY
-      ----------------------------------------- */
-
-      setStudents((prev) =>
-        prev.filter(
-          (student) =>
-            student.documentId !==
-            documentId
-        )
-      );
-
-      setFiltered((prev) =>
-        prev.filter(
-          (student) =>
-            student.documentId !==
-            documentId
-        )
-      );
-
-      toast.success(
-        "Student deleted successfully."
-      );
-
-      if (
-        form.documentId ===
-        documentId
-      ) {
-        resetForm();
-      }
-
-      /* -----------------------------------------
-         FINAL REFRESH
-      ----------------------------------------- */
-
-      await fetchStudents();
-    } catch (err) {
-      console.error(
-        "DELETE STUDENT ERROR:",
-        err
-      );
-
-      console.error(
-        "ERROR CODE:",
-        err?.code
-      );
-
-      console.error(
-        "ERROR MESSAGE:",
-        err?.message
-      );
-
-      toast.error(
-        err?.message ||
-          "Failed to delete student."
-      );
-    }
-  }
-
-  /* -----------------------------------------
-     EDIT STUDENT
-  ----------------------------------------- */
+  // ============================================================
+  // EDIT
+  // ============================================================
 
   function handleEdit(student) {
     setEditing(true);
@@ -632,194 +357,907 @@ export default function StudentsPage() {
 
       semester:
         student.semester || "",
+
+      division:
+        student.division || "",
+
+      status:
+        student.status || "Pending",
+
+      nfcUid:
+        student.nfcUid || "",
     });
   }
+
+  // ============================================================
+  // INPUT
+  // ============================================================
+
+  function handleInputChange(
+    field,
+    value
+  ) {
+    setForm((previous) => ({
+      ...previous,
+      [field]: value,
+    }));
+  }
+
+  // ============================================================
+  // SAVE
+  // ============================================================
+
+  async function handleSave() {
+    const documentId =
+      form.documentId ||
+      form.id.trim();
+
+    const name =
+      form.name.trim();
+
+    const rollNo =
+      form.rollNo.trim();
+
+    const prn =
+      form.prn.trim();
+
+    const email =
+      form.email.trim();
+
+    const phone =
+      form.phone.trim();
+
+    const department =
+      form.department.trim();
+
+    const semester =
+      form.semester.trim();
+
+    const division =
+      form.division.trim();
+
+    const status =
+      form.status.trim();
+
+    const nfcUid =
+      form.nfcUid.trim();
+
+    // ----------------------------------------------------------
+    // BASIC VALIDATION
+    // ----------------------------------------------------------
+
+    if (!documentId) {
+      toast.error(
+        "Student document ID is required."
+      );
+      return;
+    }
+
+    if (!name) {
+      toast.error(
+        "Student name is required."
+      );
+      return;
+    }
+
+    // ----------------------------------------------------------
+    // ACTIVE ACCOUNT VALIDATION
+    // ----------------------------------------------------------
+
+    if (status === "Active") {
+      if (!rollNo) {
+        toast.error(
+          "Roll No is required before activating a student."
+        );
+        return;
+      }
+
+      if (!prn) {
+        toast.error(
+          "PRN is required before activating a student."
+        );
+        return;
+      }
+
+      if (!department) {
+        toast.error(
+          "Department is required before activating a student."
+        );
+        return;
+      }
+
+      if (!semester) {
+        toast.error(
+          "Semester is required before activating a student."
+        );
+        return;
+      }
+
+      if (!division) {
+        toast.error(
+          "Division is required before activating a student."
+        );
+        return;
+      }
+    }
+
+    // ----------------------------------------------------------
+    // EMAIL
+    // ----------------------------------------------------------
+
+    if (email) {
+      const emailRegex =
+        /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+      if (!emailRegex.test(email)) {
+        toast.error(
+          "Please enter a valid email address."
+        );
+        return;
+      }
+    }
+
+    // ----------------------------------------------------------
+    // PHONE
+    // ----------------------------------------------------------
+
+    if (phone) {
+      const phoneRegex =
+        /^[6-9]\d{9}$/;
+
+      if (!phoneRegex.test(phone)) {
+        toast.error(
+          "Please enter a valid 10-digit Indian phone number."
+        );
+        return;
+      }
+    }
+
+    // ----------------------------------------------------------
+    // DUPLICATE ROLL NUMBER
+    // ----------------------------------------------------------
+
+    const duplicateRollNo =
+      students.find(
+        (student) =>
+          student.documentId !==
+            form.documentId &&
+          String(
+            student.rollNo || ""
+          )
+            .trim()
+            .toLowerCase() ===
+            rollNo.toLowerCase() &&
+          rollNo !== ""
+      );
+
+    if (duplicateRollNo) {
+      toast.error(
+        `Roll No ${rollNo} is already assigned.`
+      );
+      return;
+    }
+
+    // ----------------------------------------------------------
+    // DUPLICATE PRN
+    // ----------------------------------------------------------
+
+    const duplicatePrn =
+      students.find(
+        (student) =>
+          student.documentId !==
+            form.documentId &&
+          String(
+            student.prn || ""
+          )
+            .trim()
+            .toLowerCase() ===
+            prn.toLowerCase() &&
+          prn !== ""
+      );
+
+    if (duplicatePrn) {
+      toast.error(
+        `PRN ${prn} is already assigned.`
+      );
+      return;
+    }
+
+    // ----------------------------------------------------------
+    // DUPLICATE NFC UID
+    // ----------------------------------------------------------
+
+    const normalizedNfc =
+      nfcUid.toUpperCase();
+
+    const duplicateNfc =
+      students.find(
+        (student) =>
+          student.documentId !==
+            form.documentId &&
+          normalizedNfc !== "" &&
+          String(
+            student.nfcUid || ""
+          )
+            .trim()
+            .toUpperCase() ===
+            normalizedNfc
+      );
+
+    if (duplicateNfc) {
+      toast.error(
+        "This NFC UID is already assigned to another student."
+      );
+      return;
+    }
+
+    // ----------------------------------------------------------
+    // STUDENT DATA
+    // ----------------------------------------------------------
+
+    const existingStudent =
+      students.find(
+        (student) =>
+          student.documentId ===
+          documentId
+      );
+
+    const studentData = {
+      ...existingStudent,
+
+      id:
+        form.id.trim() ||
+        documentId,
+
+      uid:
+        existingStudent?.uid ||
+        documentId,
+
+      name,
+      rollNo,
+      prn,
+      email,
+      phone,
+
+      department,
+      semester,
+      division,
+
+      role:
+        existingStudent?.role ||
+        "student",
+
+      status:
+
+        status ||
+        "Pending",
+
+      nfcUid:
+        normalizedNfc,
+
+      updatedAt:
+        new Date().toISOString(),
+    };
+
+    // ----------------------------------------------------------
+    // SAVE STUDENT
+    // ----------------------------------------------------------
+
+    try {
+      const studentRef =
+        doc(
+          db,
+          "students",
+          documentId
+        );
+
+      await setDoc(
+        studentRef,
+        studentData,
+        {
+          merge: true,
+        }
+      );
+
+      // --------------------------------------------------------
+      // KEEP CENTRAL USER PROFILE IN SYNC
+      // --------------------------------------------------------
+
+      if (existingStudent) {
+        const userRef =
+          doc(
+            db,
+            "users",
+            documentId
+          );
+
+        await setDoc(
+          userRef,
+          {
+            uid:
+              existingStudent.uid ||
+              documentId,
+
+            email,
+
+            name,
+
+            phone,
+
+            role:
+              "student",
+
+            status,
+
+            updatedAt:
+              new Date().toISOString(),
+          },
+          {
+            merge: true,
+          }
+        );
+      }
+
+      toast.success(
+        editing
+          ? "Student profile updated successfully."
+          : "Student added successfully."
+      );
+
+      resetForm();
+
+      await fetchStudents();
+    } catch (error) {
+      console.error(
+        "SAVE STUDENT ERROR:",
+        error
+      );
+
+      toast.error(
+        error?.message ||
+          "Failed to save student."
+      );
+    }
+  }
+
+  // ============================================================
+  // DELETE
+  // ============================================================
+
+  async function handleDelete(
+    documentId
+  ) {
+    if (!documentId) {
+      toast.error(
+        "Invalid student document."
+      );
+      return;
+    }
+
+    const confirmed =
+      window.confirm(
+        "Are you sure you want to delete this student?"
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await deleteDoc(
+        doc(
+          db,
+          "students",
+          documentId
+        )
+      );
+
+      setStudents((previous) =>
+        previous.filter(
+          (student) =>
+            student.documentId !==
+            documentId
+        )
+      );
+
+      setFiltered((previous) =>
+        previous.filter(
+          (student) =>
+            student.documentId !==
+            documentId
+        )
+      );
+
+      toast.success(
+        "Student deleted successfully."
+      );
+
+      if (
+        form.documentId ===
+        documentId
+      ) {
+        resetForm();
+      }
+    } catch (error) {
+      console.error(
+        "DELETE STUDENT ERROR:",
+        error
+      );
+
+      toast.error(
+        error?.message ||
+          "Failed to delete student."
+      );
+    }
+  }
+
+  // ============================================================
+  // STATUS BADGE
+  // ============================================================
+
+  function StatusBadge({
+    status,
+  }) {
+    if (status === "Active") {
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
+          <CheckCircle2
+            size={13}
+          />
+          Active
+        </span>
+      );
+    }
+
+    if (status === "Inactive") {
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">
+          <UserX
+            size={13}
+          />
+          Inactive
+        </span>
+      );
+    }
+
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
+        <Clock3
+          size={13}
+        />
+        Pending
+      </span>
+    );
+  }
+
+  // ============================================================
+  // RENDER
+  // ============================================================
 
   return (
     <div className="space-y-6">
 
-      {/* HEADER */}
+      {/* ======================================================
+          HEADER
+      ======================================================= */}
 
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
 
         <div>
+
           <h1 className="text-3xl font-bold">
-            Manage Students
+            Student Management
           </h1>
 
-          <p className="text-gray-500">
-            Add, edit and delete students
+          <p className="mt-1 text-gray-500">
+            Approve accounts and manage student academic profiles.
           </p>
+
         </div>
 
         <button
           type="button"
           onClick={openAddForm}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl flex items-center gap-2"
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-medium text-white transition hover:bg-blue-700"
         >
-          <Plus size={18} />
+          <Plus
+            size={18}
+          />
           Add Student
         </button>
 
       </div>
 
-      {/* FORM */}
+      {/* ======================================================
+          FORM
+      ======================================================= */}
 
       {showForm && (
-        <div className="bg-white rounded-2xl shadow-md p-6">
+        <div className="rounded-2xl bg-white p-6 shadow-md">
 
-          <div className="flex justify-between mb-6">
+          <div className="mb-6 flex items-center justify-between">
 
-            <h2 className="text-2xl font-bold">
-              {editing
-                ? "Edit Student"
-                : "Add Student"}
-            </h2>
+            <div>
+
+              <h2 className="text-2xl font-bold">
+                {editing
+                  ? "Edit Student"
+                  : "Add Student"}
+              </h2>
+
+              <p className="mt-1 text-sm text-gray-500">
+                Complete the academic profile before activation.
+              </p>
+
+            </div>
 
             <button
               type="button"
               onClick={resetForm}
+              className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
             >
-              <X />
+              <X
+                size={20}
+              />
             </button>
 
           </div>
 
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid gap-4 md:grid-cols-2">
 
-            {/* STUDENT ID */}
+            {/* DOCUMENT ID */}
 
-            <input
-              placeholder="Student ID"
-              disabled={editing}
-              value={form.id}
-              onChange={(e) =>
-                handleInputChange(
-                  "id",
-                  e.target.value
-                )
-              }
-              className="border rounded-xl p-3 disabled:bg-gray-100 disabled:text-gray-500"
-            />
+            <div>
+
+              <label className="mb-2 block text-sm font-medium">
+                Student Document ID
+              </label>
+
+              <input
+                value={
+                  form.documentId ||
+                  form.id
+                }
+                disabled
+                className="w-full rounded-xl border border-gray-300 bg-gray-100 p-3 text-gray-500"
+              />
+
+            </div>
 
             {/* NAME */}
 
-            <input
-              placeholder="Student Name"
-              value={form.name}
-              onChange={(e) =>
-                handleInputChange(
-                  "name",
-                  e.target.value
-                )
-              }
-              className="border rounded-xl p-3"
-            />
+            <div>
 
-            {/* ROLL NO */}
+              <label className="mb-2 block text-sm font-medium">
+                Student Name
+              </label>
 
-            <input
-              placeholder="Roll No"
-              value={form.rollNo}
-              onChange={(e) =>
-                handleInputChange(
-                  "rollNo",
-                  e.target.value
-                )
-              }
-              className="border rounded-xl p-3"
-            />
+              <input
+                value={form.name}
+                onChange={(event) =>
+                  handleInputChange(
+                    "name",
+                    event.target.value
+                  )
+                }
+                className="w-full rounded-xl border border-gray-300 p-3"
+                placeholder="Student full name"
+              />
+
+            </div>
+
+            {/* ROLL */}
+
+            <div>
+
+              <label className="mb-2 block text-sm font-medium">
+                Roll No
+              </label>
+
+              <input
+                value={form.rollNo}
+                onChange={(event) =>
+                  handleInputChange(
+                    "rollNo",
+                    event.target.value
+                  )
+                }
+                className="w-full rounded-xl border border-gray-300 p-3"
+                placeholder="22CSXXX"
+              />
+
+            </div>
 
             {/* PRN */}
 
-            <input
-              placeholder="PRN"
-              value={form.prn}
-              onChange={(e) =>
-                handleInputChange(
-                  "prn",
-                  e.target.value
-                )
-              }
-              className="border rounded-xl p-3"
-            />
+            <div>
+
+              <label className="mb-2 block text-sm font-medium">
+                PRN
+              </label>
+
+              <input
+                value={form.prn}
+                onChange={(event) =>
+                  handleInputChange(
+                    "prn",
+                    event.target.value
+                  )
+                }
+                className="w-full rounded-xl border border-gray-300 p-3"
+                placeholder="Student PRN"
+              />
+
+            </div>
 
             {/* EMAIL */}
 
-            <input
-              type="email"
-              placeholder="Email"
-              value={form.email}
-              onChange={(e) =>
-                handleInputChange(
-                  "email",
-                  e.target.value
-                )
-              }
-              className="border rounded-xl p-3"
-            />
+            <div>
+
+              <label className="mb-2 block text-sm font-medium">
+                Email
+              </label>
+
+              <input
+                type="email"
+                value={form.email}
+                onChange={(event) =>
+                  handleInputChange(
+                    "email",
+                    event.target.value
+                  )
+                }
+                className="w-full rounded-xl border border-gray-300 p-3"
+                placeholder="student@example.com"
+              />
+
+            </div>
 
             {/* PHONE */}
 
-            <input
-              type="tel"
-              placeholder="Phone"
-              value={form.phone}
-              onChange={(e) =>
-                handleInputChange(
-                  "phone",
-                  e.target.value
-                )
-              }
-              className="border rounded-xl p-3"
-            />
+            <div>
+
+              <label className="mb-2 block text-sm font-medium">
+                Phone
+              </label>
+
+              <input
+                type="tel"
+                value={form.phone}
+                onChange={(event) =>
+                  handleInputChange(
+                    "phone",
+                    event.target.value
+                  )
+                }
+                className="w-full rounded-xl border border-gray-300 p-3"
+                placeholder="10-digit phone number"
+              />
+
+            </div>
 
             {/* DEPARTMENT */}
 
-            <input
-              placeholder="Department"
-              value={form.department}
-              onChange={(e) =>
-                handleInputChange(
-                  "department",
-                  e.target.value
-                )
-              }
-              className="border rounded-xl p-3"
-            />
+            <div>
+
+              <label className="mb-2 block text-sm font-medium">
+                Department
+              </label>
+
+              {departments.length > 0 ? (
+                <select
+                  value={
+                    form.department
+                  }
+                  onChange={(event) =>
+                    handleInputChange(
+                      "department",
+                      event.target.value
+                    )
+                  }
+                  className="w-full rounded-xl border border-gray-300 bg-white p-3"
+                >
+
+                  <option value="">
+                    Select Department
+                  </option>
+
+                  {departments.map(
+                    (item) => (
+                      <option
+                        key={item.id}
+                        value={item.value}
+                      >
+                        {item.value}
+                      </option>
+                    )
+                  )}
+
+                </select>
+              ) : (
+                <input
+                  value={
+                    form.department
+                  }
+                  onChange={(event) =>
+                    handleInputChange(
+                      "department",
+                      event.target.value
+                    )
+                  }
+                  className="w-full rounded-xl border border-gray-300 p-3"
+                  placeholder="Department"
+                />
+              )}
+
+            </div>
 
             {/* SEMESTER */}
 
-            <input
-              placeholder="Semester"
-              value={form.semester}
-              onChange={(e) =>
-                handleInputChange(
-                  "semester",
-                  e.target.value
-                )
-              }
-              className="border rounded-xl p-3"
-            />
+            <div>
+
+              <label className="mb-2 block text-sm font-medium">
+                Semester
+              </label>
+
+              <select
+                value={form.semester}
+                onChange={(event) =>
+                  handleInputChange(
+                    "semester",
+                    event.target.value
+                  )
+                }
+                className="w-full rounded-xl border border-gray-300 bg-white p-3"
+              >
+
+                <option value="">
+                  Select Semester
+                </option>
+
+                {semesters.map(
+                  (item) => (
+                    <option
+                      key={item.id}
+                      value={item.name}
+                    >
+                      {item.name}
+                    </option>
+                  )
+                )}
+
+              </select>
+
+            </div>
+
+            {/* DIVISION */}
+
+            <div>
+
+              <label className="mb-2 block text-sm font-medium">
+                Division
+              </label>
+
+              <select
+                value={form.division}
+                onChange={(event) =>
+                  handleInputChange(
+                    "division",
+                    event.target.value
+                  )
+                }
+                className="w-full rounded-xl border border-gray-300 bg-white p-3"
+              >
+
+                <option value="">
+                  Select Division
+                </option>
+
+                {divisions.map(
+                  (item) => (
+                    <option
+                      key={item.id}
+                      value={item.id}
+                    >
+                      {item.name}
+                    </option>
+                  )
+                )}
+
+              </select>
+
+            </div>
+
+            {/* STATUS */}
+
+            <div>
+
+              <label className="mb-2 block text-sm font-medium">
+                Account Status
+              </label>
+
+              <select
+                value={form.status}
+                onChange={(event) =>
+                  handleInputChange(
+                    "status",
+                    event.target.value
+                  )
+                }
+                className="w-full rounded-xl border border-gray-300 bg-white p-3"
+              >
+
+                <option value="Pending">
+                  Pending
+                </option>
+
+                <option value="Active">
+                  Active
+                </option>
+
+                <option value="Inactive">
+                  Inactive
+                </option>
+
+              </select>
+
+            </div>
+
+            {/* NFC */}
+
+            <div>
+
+              <label className="mb-2 block text-sm font-medium">
+                NFC UID
+              </label>
+
+              <div className="relative">
+
+                <Nfc
+                  size={18}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                />
+
+                <input
+                  value={form.nfcUid}
+                  onChange={(event) =>
+                    handleInputChange(
+                      "nfcUid",
+                      event.target.value.toUpperCase()
+                    )
+                  }
+                  className="w-full rounded-xl border border-gray-300 p-3 pl-10"
+                  placeholder="NFC UID"
+                />
+
+              </div>
+
+              <p className="mt-1 text-xs text-gray-400">
+                Leave blank until an NFC card is assigned.
+              </p>
+
+            </div>
 
           </div>
 
-          <div className="mt-6 flex gap-3">
+          {/* ACTIONS */}
+
+          <div className="mt-6 flex flex-wrap gap-3">
 
             <button
               type="button"
               onClick={handleSave}
-              className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl"
+              className="rounded-xl bg-green-600 px-6 py-3 font-medium text-white transition hover:bg-green-700"
             >
               {editing
-                ? "Update Student"
-                : "Save Student"}
+                ? "Save Student"
+                : "Create Student"}
             </button>
 
             <button
               type="button"
               onClick={resetForm}
-              className="bg-gray-300 hover:bg-gray-400 px-6 py-3 rounded-xl"
+              className="rounded-xl bg-gray-200 px-6 py-3 font-medium text-gray-700 hover:bg-gray-300"
             >
               Cancel
             </button>
@@ -829,85 +1267,92 @@ export default function StudentsPage() {
         </div>
       )}
 
-      {/* STUDENT LIST */}
+      {/* ======================================================
+          SEARCH
+      ======================================================= */}
 
-      <div className="bg-white rounded-2xl shadow-md p-5">
+      <div className="rounded-2xl bg-white p-5 shadow-md">
 
-        {/* SEARCH */}
-
-        <div className="relative mb-6">
+        <div className="relative">
 
           <Search
             size={18}
-            className="absolute left-3 top-3 text-gray-400"
+            className="absolute left-3 top-3.5 text-gray-400"
           />
 
           <input
             type="text"
-            placeholder="Search by Name, Roll No or PRN"
+            placeholder="Search by name, roll no, PRN, email or status"
             value={search}
-            onChange={(e) =>
-              setSearch(e.target.value)
+            onChange={(event) =>
+              setSearch(
+                event.target.value
+              )
             }
-            className="w-full border rounded-xl pl-10 pr-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-xl border border-gray-300 py-3 pl-10 pr-4 outline-none focus:ring-2 focus:ring-blue-500"
           />
 
         </div>
 
-        {/* LOADING */}
+      </div>
+
+      {/* ======================================================
+          TABLE
+      ======================================================= */}
+
+      <div className="rounded-2xl bg-white p-5 shadow-md">
 
         {loading ? (
-
-          <p className="text-center py-10">
+          <div className="py-12 text-center text-gray-500">
             Loading students...
-          </p>
-
+          </div>
         ) : filtered.length === 0 ? (
-
-          <div className="text-center py-10">
+          <div className="py-12 text-center">
 
             <Users
               size={48}
-              className="mx-auto text-gray-400 mb-4"
+              className="mx-auto mb-4 text-gray-300"
             />
 
-            <p>
+            <p className="font-medium">
               No students found.
             </p>
 
           </div>
-
         ) : (
-
           <div className="overflow-x-auto">
 
-            <table className="w-full">
+            <table className="w-full min-w-275">
 
               <thead className="bg-gray-100">
 
                 <tr>
 
-                  <th className="text-left p-4">
+                  <th className="p-4 text-left">
                     Name
                   </th>
 
-                  <th className="text-left p-4">
+                  <th className="p-4 text-left">
                     Roll No
                   </th>
 
-                  <th className="text-left p-4">
-                    PRN
-                  </th>
-
-                  <th className="text-left p-4">
+                  <th className="p-4 text-left">
                     Department
                   </th>
 
-                  <th className="text-left p-4">
+                  <th className="p-4 text-left">
                     Semester
                   </th>
 
-                  <th className="text-center p-4">
+                  <th className="p-4 text-left">
+                    Division
+                  </th>
+
+                  <th className="p-4 text-left">
+                    Status
+                  </th>
+
+                  <th className="p-4 text-center">
                     Actions
                   </th>
 
@@ -919,26 +1364,29 @@ export default function StudentsPage() {
 
                 {filtered.map(
                   (student) => (
-
                     <tr
                       key={
                         student.documentId
                       }
-                      className="border-b hover:bg-gray-50"
+                      className="border-b transition hover:bg-gray-50"
                     >
 
-                      <td className="p-4 font-medium">
-                        {student.name ||
-                          "—"}
+                      <td className="p-4">
+
+                        <div className="font-semibold">
+                          {student.name ||
+                            "—"}
+                        </div>
+
+                        <div className="text-xs text-gray-500">
+                          {student.email ||
+                            "No email"}
+                        </div>
+
                       </td>
 
                       <td className="p-4">
                         {student.rollNo ||
-                          "—"}
-                      </td>
-
-                      <td className="p-4">
-                        {student.prn ||
                           "—"}
                       </td>
 
@@ -953,10 +1401,22 @@ export default function StudentsPage() {
                       </td>
 
                       <td className="p-4">
+                        {student.division ||
+                          "—"}
+                      </td>
 
-                        <div className="flex justify-center gap-3">
+                      <td className="p-4">
+                        <StatusBadge
+                          status={
+                            student.status ||
+                            "Pending"
+                          }
+                        />
+                      </td>
 
-                          {/* VIEW */}
+                      <td className="p-4">
+
+                        <div className="flex justify-center gap-2">
 
                           <button
                             type="button"
@@ -965,12 +1425,10 @@ export default function StudentsPage() {
                                 `/admin/students/${student.documentId}`
                               )
                             }
-                            className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-2 rounded-lg text-sm font-medium"
+                            className="rounded-lg bg-blue-100 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-200"
                           >
                             View
                           </button>
-
-                          {/* EDIT */}
 
                           <button
                             type="button"
@@ -979,14 +1437,12 @@ export default function StudentsPage() {
                                 student
                               )
                             }
-                            className="bg-yellow-100 hover:bg-yellow-200 text-yellow-700 p-2 rounded-lg"
+                            className="rounded-lg bg-yellow-100 p-2 text-yellow-700 hover:bg-yellow-200"
                           >
                             <Pencil
-                              size={18}
+                              size={17}
                             />
                           </button>
-
-                          {/* DELETE */}
 
                           <button
                             type="button"
@@ -995,10 +1451,10 @@ export default function StudentsPage() {
                                 student.documentId
                               )
                             }
-                            className="bg-red-100 hover:bg-red-200 text-red-700 p-2 rounded-lg"
+                            className="rounded-lg bg-red-100 p-2 text-red-700 hover:bg-red-200"
                           >
                             <Trash2
-                              size={18}
+                              size={17}
                             />
                           </button>
 
@@ -1007,7 +1463,6 @@ export default function StudentsPage() {
                       </td>
 
                     </tr>
-
                   )
                 )}
 
@@ -1016,7 +1471,6 @@ export default function StudentsPage() {
             </table>
 
           </div>
-
         )}
 
       </div>
