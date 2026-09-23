@@ -23,8 +23,7 @@ import {
   getDocs,
   getDoc,
   onSnapshot,
-  setDoc,
-  deleteDoc,
+  writeBatch,
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
@@ -36,6 +35,9 @@ export default function NFCReaderPage() {
   // =========================================================
 
   const [running, setRunning] = useState(false);
+
+  const [activeSessionId, setActiveSessionId] =
+    useState("");
 
   const [subject, setSubject] = useState("");
   const [faculty, setFaculty] = useState("");
@@ -169,6 +171,21 @@ export default function NFCReaderPage() {
     ).format(new Date());
   }
 
+  function getIndiaTimeKey() {
+    return new Intl.DateTimeFormat(
+      "en-GB",
+      {
+        timeZone: "Asia/Kolkata",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+      }
+    )
+      .format(new Date())
+      .replace(/:/g, "");
+  }
+
   function formatTime(value) {
     const millis = getMillis(value);
 
@@ -176,7 +193,9 @@ export default function NFCReaderPage() {
       return "";
     }
 
-    return new Date(millis).toLocaleTimeString(
+    return new Date(
+      millis
+    ).toLocaleTimeString(
       "en-IN",
       {
         hour: "2-digit",
@@ -187,24 +206,93 @@ export default function NFCReaderPage() {
     );
   }
 
+  function createSafeSlug(value) {
+    return String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+  }
+
+  /*
+   * Generates a readable historical session ID.
+   *
+   * Example:
+   *
+   * 20260922_152400_cloud-computing_semester-4_b_a31f82cd
+   */
+  function createHistoricalSessionId() {
+    const date =
+      getIndiaDate().replace(
+        /-/g,
+        ""
+      );
+
+    const time =
+      getIndiaTimeKey();
+
+    const subjectPart =
+      createSafeSlug(subject) ||
+      "subject";
+
+    const semesterPart =
+      createSafeSlug(semester) ||
+      "semester";
+
+    const divisionPart =
+      createSafeSlug(division) ||
+      "division";
+
+    const uniquePart =
+      crypto
+        .randomUUID()
+        .slice(0, 8);
+
+    return [
+      date,
+      time,
+      subjectPart,
+      semesterPart,
+      divisionPart,
+      uniquePart,
+    ].join("_");
+  }
+
   // =========================================================
-  // CLEAR LIVE/CURRENT NFC RECORDS
+  // CLEAR LIVE CURRENT RECORDS
   // =========================================================
 
   async function clearCurrentStudentRecords() {
-    const studentsRef = collection(
-      db,
-      "attendanceSessions",
-      "current",
-      "students"
-    );
+    const studentsRef =
+      collection(
+        db,
+        "attendanceSessions",
+        "current",
+        "students"
+      );
 
     const snapshot =
-      await getDocs(studentsRef);
+      await getDocs(
+        studentsRef
+      );
 
-    for (const studentDoc of snapshot.docs) {
-      await deleteDoc(studentDoc.ref);
+    if (snapshot.empty) {
+      setLastStudent(null);
+      return;
     }
+
+    const batch =
+      writeBatch(db);
+
+    snapshot.docs.forEach(
+      (studentDoc) => {
+        batch.delete(
+          studentDoc.ref
+        );
+      }
+    );
+
+    await batch.commit();
 
     setLastStudent(null);
   }
@@ -222,16 +310,21 @@ export default function NFCReaderPage() {
       // ACADEMIC SETTINGS
       // -------------------------------------------------------
 
-      const academicRef = doc(
-        db,
-        "academicSettings",
-        "master"
-      );
+      const academicRef =
+        doc(
+          db,
+          "academicSettings",
+          "master"
+        );
 
       const academicSnap =
-        await getDoc(academicRef);
+        await getDoc(
+          academicRef
+        );
 
-      if (!academicSnap.exists()) {
+      if (
+        !academicSnap.exists()
+      ) {
         throw new Error(
           "Academic master data was not found."
         );
@@ -252,12 +345,18 @@ export default function NFCReaderPage() {
               )
               .sort(
                 (a, b) =>
-                  Number(a.number || 0) -
-                  Number(b.number || 0)
+                  Number(
+                    a.number || 0
+                  ) -
+                  Number(
+                    b.number || 0
+                  )
               )
               .map((item) => {
                 const value =
-                  textValue(item.name) ||
+                  textValue(
+                    item.name
+                  ) ||
                   `Semester ${item.number}`;
 
                 return {
@@ -284,15 +383,23 @@ export default function NFCReaderPage() {
               )
               .map((item) => {
                 const value =
-                  textValue(item.id) ||
-                  textValue(item.value) ||
-                  textValue(item.name);
+                  textValue(
+                    item.id
+                  ) ||
+                  textValue(
+                    item.value
+                  ) ||
+                  textValue(
+                    item.name
+                  );
 
                 return {
                   id: value,
                   value,
                   label:
-                    textValue(item.name) ||
+                    textValue(
+                      item.name
+                    ) ||
                     `Division ${value}`,
                 };
               })
@@ -428,73 +535,6 @@ export default function NFCReaderPage() {
       setRooms(
         loadedRooms
       );
-
-      // -------------------------------------------------------
-      // CURRENT SESSION
-      // -------------------------------------------------------
-
-      const currentRef = doc(
-        db,
-        "attendanceSessions",
-        "current"
-      );
-
-      const currentSnap =
-        await getDoc(currentRef);
-
-      if (currentSnap.exists()) {
-        const current =
-          currentSnap.data();
-
-        setRunning(
-          current.status === "active"
-        );
-
-        if (
-          current.subject &&
-          current.subject !== "Not Selected"
-        ) {
-          setSubject(
-            current.subject
-          );
-        }
-
-        if (
-          current.faculty &&
-          current.faculty !== "Not Selected"
-        ) {
-          setFaculty(
-            current.faculty
-          );
-        }
-
-        if (
-          current.semester &&
-          current.semester !== "Not Selected"
-        ) {
-          setSemester(
-            current.semester
-          );
-        }
-
-        if (
-          current.division &&
-          current.division !== "Not Selected"
-        ) {
-          setDivision(
-            current.division
-          );
-        }
-
-        if (
-          current.room &&
-          current.room !== "Not Selected"
-        ) {
-          setRoom(
-            current.room
-          );
-        }
-      }
     } catch (error) {
       console.error(
         "Failed to load NFC master data:",
@@ -505,11 +545,15 @@ export default function NFCReaderPage() {
         error?.message ||
         "Failed to load NFC reader data.";
 
-      setOptionsError(message);
+      setOptionsError(
+        message
+      );
 
       toast.error(message);
     } finally {
-      setLoadingOptions(false);
+      setLoadingOptions(
+        false
+      );
     }
   }
 
@@ -519,6 +563,107 @@ export default function NFCReaderPage() {
 
   useEffect(() => {
     loadOptions();
+  }, []);
+
+  // =========================================================
+  // LIVE CURRENT SESSION LISTENER
+  // =========================================================
+
+  useEffect(() => {
+    const currentRef =
+      doc(
+        db,
+        "attendanceSessions",
+        "current"
+      );
+
+    const unsubscribe =
+      onSnapshot(
+        currentRef,
+        (snapshot) => {
+          if (
+            !snapshot.exists()
+          ) {
+            setRunning(false);
+            setActiveSessionId("");
+            return;
+          }
+
+          const current =
+            snapshot.data();
+
+          const isActive =
+            current.status ===
+            "active";
+
+          setRunning(
+            isActive
+          );
+
+          setActiveSessionId(
+            current.activeSessionId ||
+            current.sessionId ||
+            ""
+          );
+
+          if (
+            current.subject
+          ) {
+            setSubject(
+              current.subject
+            );
+          }
+
+          if (
+            current.faculty
+          ) {
+            setFaculty(
+              current.faculty
+            );
+          }
+
+          if (
+            current.semester
+          ) {
+            setSemester(
+              current.semester
+            );
+          }
+
+          if (
+            current.division
+          ) {
+            setDivision(
+              current.division
+            );
+          }
+
+          if (
+            current.room
+          ) {
+            setRoom(
+              current.room
+            );
+          }
+
+          /*
+           * When current is no longer active,
+           * the live display is cleared.
+           */
+          if (!isActive) {
+            setLastStudent(null);
+          }
+        },
+        (error) => {
+          console.error(
+            "Current session listener error:",
+            error
+          );
+        }
+      );
+
+    return () =>
+      unsubscribe();
   }, []);
 
   // =========================================================
@@ -538,21 +683,30 @@ export default function NFCReaderPage() {
       onSnapshot(
         studentsRef,
         (snapshot) => {
-          if (snapshot.empty) {
+          if (
+            snapshot.empty
+          ) {
             setLastStudent(null);
             return;
           }
 
           const students =
             snapshot.docs
-              .map((studentDoc) => ({
-                id: studentDoc.id,
-                ...studentDoc.data(),
-              }))
+              .map(
+                (studentDoc) => ({
+                  id:
+                    studentDoc.id,
+                  ...studentDoc.data(),
+                })
+              )
               .sort(
                 (a, b) =>
-                  getMillis(b.markedAt) -
-                  getMillis(a.markedAt)
+                  getMillis(
+                    b.markedAt
+                  ) -
+                  getMillis(
+                    a.markedAt
+                  )
               );
 
           const latest =
@@ -568,18 +722,22 @@ export default function NFCReaderPage() {
               "Unknown",
 
             subject:
+              latest.subject ||
               subject ||
               "Unknown",
 
             semester:
+              latest.semester ||
               semester ||
               "Unknown",
 
             division:
+              latest.division ||
               division ||
               "Unknown",
 
             room:
+              latest.room ||
               room ||
               "Unknown",
 
@@ -668,28 +826,45 @@ export default function NFCReaderPage() {
     try {
       setRefreshing(true);
 
-      // Clear old live scan records.
+      /*
+       * A live session can never contain
+       * attendance from a previous session.
+       */
       await clearCurrentStudentRecords();
 
       const sessionId =
-        crypto.randomUUID();
+        createHistoricalSessionId();
 
       const now =
         new Date();
 
-      const date =
-        getIndiaDate();
+      const historicalRef =
+        doc(
+          db,
+          "attendanceSessions",
+          sessionId
+        );
 
-      await setDoc(
+      const currentRef =
         doc(
           db,
           "attendanceSessions",
           "current"
-        ),
+        );
+
+      const batch =
+        writeBatch(db);
+
+      // -------------------------------------------------------
+      // CANONICAL HISTORICAL SESSION
+      // -------------------------------------------------------
+
+      batch.set(
+        historicalRef,
         {
           sessionId,
-
-          date,
+          date:
+            getIndiaDate(),
 
           subject,
           faculty,
@@ -697,20 +872,78 @@ export default function NFCReaderPage() {
           division,
           room,
 
-          status: "active",
+          status:
+            "active",
 
-          attendanceMethod: "NFC",
+          attendanceMethod:
+            "NFC",
 
           present: 0,
 
-          createdAt: now,
-          startTime: now,
-          updatedAt: now,
+          createdAt:
+            now,
+
+          startTime:
+            now,
+
+          updatedAt:
+            now,
         }
       );
 
-      setLastStudent(null);
-      setRunning(true);
+      // -------------------------------------------------------
+      // LIVE SESSION POINTER
+      // -------------------------------------------------------
+
+      batch.set(
+        currentRef,
+        {
+          sessionId,
+
+          activeSessionId:
+            sessionId,
+
+          date:
+            getIndiaDate(),
+
+          subject,
+          faculty,
+          semester,
+          division,
+          room,
+
+          status:
+            "active",
+
+          attendanceMethod:
+            "NFC",
+
+          present: 0,
+
+          createdAt:
+            now,
+
+          startTime:
+            now,
+
+          updatedAt:
+            now,
+        }
+      );
+
+      await batch.commit();
+
+      setActiveSessionId(
+        sessionId
+      );
+
+      setLastStudent(
+        null
+      );
+
+      setRunning(
+        true
+      );
 
       toast.success(
         "Attendance session started."
@@ -726,7 +959,9 @@ export default function NFCReaderPage() {
           "Failed to start attendance."
       );
     } finally {
-      setRefreshing(false);
+      setRefreshing(
+        false
+      );
     }
   }
 
@@ -745,26 +980,132 @@ export default function NFCReaderPage() {
     try {
       setRefreshing(true);
 
-      await clearCurrentStudentRecords();
-
-      await setDoc(
+      const currentRef =
         doc(
           db,
           "attendanceSessions",
           "current"
-        ),
+        );
+
+      const currentSnap =
+        await getDoc(
+          currentRef
+        );
+
+      if (
+        !currentSnap.exists()
+      ) {
+        throw new Error(
+          "Current attendance session was not found."
+        );
+      }
+
+      const current =
+        currentSnap.data();
+
+      const sessionId =
+        current.activeSessionId ||
+        current.sessionId ||
+        activeSessionId;
+
+      if (!sessionId) {
+        throw new Error(
+          "Active session ID is missing."
+        );
+      }
+
+      const historicalRef =
+        doc(
+          db,
+          "attendanceSessions",
+          sessionId
+        );
+
+      const historicalSnap =
+        await getDoc(
+          historicalRef
+        );
+
+      if (
+        !historicalSnap.exists()
+      ) {
+        throw new Error(
+          "Historical attendance session was not found."
+        );
+      }
+
+      const now =
+        new Date();
+
+      const batch =
+        writeBatch(db);
+
+      // -------------------------------------------------------
+      // CLOSE HISTORICAL SESSION
+      // -------------------------------------------------------
+
+      batch.set(
+        historicalRef,
         {
-          status: "inactive",
-          present: 0,
-          updatedAt: new Date(),
+          status:
+            "inactive",
+
+          endTime:
+            now,
+
+          updatedAt:
+            now,
         },
         {
           merge: true,
         }
       );
 
-      setRunning(false);
-      setLastStudent(null);
+      // -------------------------------------------------------
+      // CLOSE LIVE POINTER
+      // -------------------------------------------------------
+
+      batch.set(
+        currentRef,
+        {
+          status:
+            "inactive",
+
+          activeSessionId:
+            null,
+
+          endTime:
+            now,
+
+          updatedAt:
+            now,
+        },
+        {
+          merge: true,
+        }
+      );
+
+      await batch.commit();
+
+      /*
+       * Clear live current attendance after
+       * canonical historical data is closed.
+       *
+       * Historical records remain untouched.
+       */
+      await clearCurrentStudentRecords();
+
+      setRunning(
+        false
+      );
+
+      setActiveSessionId(
+        ""
+      );
+
+      setLastStudent(
+        null
+      );
 
       toast.success(
         "Attendance session stopped."
@@ -780,7 +1121,9 @@ export default function NFCReaderPage() {
           "Failed to stop attendance."
       );
     } finally {
-      setRefreshing(false);
+      setRefreshing(
+        false
+      );
     }
   }
 
@@ -805,7 +1148,9 @@ export default function NFCReaderPage() {
 
       <div className="max-w-6xl mx-auto">
 
-        {/* HEADER */}
+        {/* ===================================================
+            HEADER
+        ==================================================== */}
 
         <div className="bg-white rounded-2xl shadow-lg p-8 mb-6">
 
@@ -834,9 +1179,11 @@ export default function NFCReaderPage() {
               />
 
               <span className="font-medium">
+
                 {running
                   ? "Attendance Active"
                   : "Attendance Stopped"}
+
               </span>
 
             </div>
@@ -845,9 +1192,12 @@ export default function NFCReaderPage() {
 
         </div>
 
-        {/* LOADING */}
+        {/* ===================================================
+            LOADING
+        ==================================================== */}
 
         {loadingOptions && (
+
           <div className="bg-white rounded-2xl shadow-lg p-6 mb-6 flex items-center gap-3">
 
             <Loader2
@@ -860,11 +1210,15 @@ export default function NFCReaderPage() {
             </span>
 
           </div>
+
         )}
 
-        {/* ERROR */}
+        {/* ===================================================
+            ERROR
+        ==================================================== */}
 
         {optionsError && (
+
           <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-6 mb-6">
 
             <p className="font-semibold">
@@ -872,7 +1226,9 @@ export default function NFCReaderPage() {
             </p>
 
             <button
-              onClick={refreshOptions}
+              onClick={
+                refreshOptions
+              }
               disabled={
                 loadingOptions ||
                 refreshing
@@ -889,9 +1245,12 @@ export default function NFCReaderPage() {
             </button>
 
           </div>
+
         )}
 
-        {/* ATTENDANCE SESSION */}
+        {/* ===================================================
+            ATTENDANCE SESSION
+        ==================================================== */}
 
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
 
@@ -911,7 +1270,9 @@ export default function NFCReaderPage() {
             </div>
 
             <button
-              onClick={refreshOptions}
+              onClick={
+                refreshOptions
+              }
               disabled={
                 loadingOptions ||
                 refreshing ||
@@ -948,7 +1309,9 @@ export default function NFCReaderPage() {
               <select
                 value={subject}
                 onChange={(e) =>
-                  setSubject(e.target.value)
+                  setSubject(
+                    e.target.value
+                  )
                 }
                 disabled={
                   running ||
@@ -987,7 +1350,9 @@ export default function NFCReaderPage() {
               <select
                 value={faculty}
                 onChange={(e) =>
-                  setFaculty(e.target.value)
+                  setFaculty(
+                    e.target.value
+                  )
                 }
                 disabled={
                   running ||
@@ -1026,7 +1391,9 @@ export default function NFCReaderPage() {
               <select
                 value={room}
                 onChange={(e) =>
-                  setRoom(e.target.value)
+                  setRoom(
+                    e.target.value
+                  )
                 }
                 disabled={
                   running ||
@@ -1065,7 +1432,9 @@ export default function NFCReaderPage() {
               <select
                 value={semester}
                 onChange={(e) =>
-                  setSemester(e.target.value)
+                  setSemester(
+                    e.target.value
+                  )
                 }
                 disabled={
                   running ||
@@ -1104,7 +1473,9 @@ export default function NFCReaderPage() {
               <select
                 value={division}
                 onChange={(e) =>
-                  setDivision(e.target.value)
+                  setDivision(
+                    e.target.value
+                  )
                 }
                 disabled={
                   running ||
@@ -1139,7 +1510,9 @@ export default function NFCReaderPage() {
           <div className="flex flex-wrap gap-4 mt-6">
 
             <button
-              onClick={startAttendance}
+              onClick={
+                startAttendance
+              }
               disabled={
                 running ||
                 loadingOptions ||
@@ -1157,7 +1530,9 @@ export default function NFCReaderPage() {
             </button>
 
             <button
-              onClick={stopAttendance}
+              onClick={
+                stopAttendance
+              }
               disabled={
                 !running ||
                 refreshing
@@ -1175,9 +1550,30 @@ export default function NFCReaderPage() {
 
           </div>
 
+          {/* ACTIVE SESSION INFORMATION */}
+
+          {running &&
+            activeSessionId && (
+
+              <div className="mt-5 bg-blue-50 border border-blue-200 rounded-xl p-4">
+
+                <p className="text-blue-700 font-semibold">
+                  Active Session
+                </p>
+
+                <p className="text-blue-600 text-sm mt-1 break-all">
+                  {activeSessionId}
+                </p>
+
+              </div>
+
+            )}
+
         </div>
 
-        {/* NFC STATUS + LAST STUDENT */}
+        {/* ===================================================
+            NFC STATUS + LAST STUDENT
+        ==================================================== */}
 
         <div className="grid lg:grid-cols-2 gap-6">
 
@@ -1228,6 +1624,7 @@ export default function NFCReaderPage() {
             </p>
 
             {running && (
+
               <div className="mt-6 bg-green-50 border border-green-200 rounded-xl p-4">
 
                 <p className="text-green-700 font-semibold">
@@ -1239,6 +1636,7 @@ export default function NFCReaderPage() {
                 </p>
 
               </div>
+
             )}
 
           </div>

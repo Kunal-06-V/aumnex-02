@@ -17,7 +17,9 @@ import serviceAccount from "../../firebase-service-account.json";
 const adminApp =
   getApps().length === 0
     ? initializeApp({
-        credential: cert(serviceAccount),
+        credential: cert(
+          serviceAccount
+        ),
       })
     : getApps()[0];
 
