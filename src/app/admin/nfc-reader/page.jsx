@@ -15,6 +15,8 @@ import {
   Loader2,
   RefreshCw,
   Radio,
+  UserX,
+  Clock3,
 } from "lucide-react";
 
 import {
@@ -39,21 +41,45 @@ export default function NFCReaderPage() {
   const [activeSessionId, setActiveSessionId] =
     useState("");
 
-  const [subject, setSubject] = useState("");
-  const [faculty, setFaculty] = useState("");
-  const [semester, setSemester] = useState("");
-  const [division, setDivision] = useState("");
-  const [room, setRoom] = useState("");
+  const [department, setDepartment] =
+    useState("");
+
+  const [subject, setSubject] =
+    useState("");
+
+  const [faculty, setFaculty] =
+    useState("");
+
+  const [semester, setSemester] =
+    useState("");
+
+  const [division, setDivision] =
+    useState("");
+
+  const [room, setRoom] =
+    useState("");
 
   // =========================================================
   // MASTER DATA
   // =========================================================
 
-  const [subjects, setSubjects] = useState([]);
-  const [faculties, setFaculties] = useState([]);
-  const [rooms, setRooms] = useState([]);
-  const [semesters, setSemesters] = useState([]);
-  const [divisions, setDivisions] = useState([]);
+  const [departments, setDepartments] =
+    useState([]);
+
+  const [subjects, setSubjects] =
+    useState([]);
+
+  const [faculties, setFaculties] =
+    useState([]);
+
+  const [rooms, setRooms] =
+    useState([]);
+
+  const [semesters, setSemesters] =
+    useState([]);
+
+  const [divisions, setDivisions] =
+    useState([]);
 
   // =========================================================
   // UI STATE
@@ -70,6 +96,13 @@ export default function NFCReaderPage() {
 
   const [lastStudent, setLastStudent] =
     useState(null);
+
+  const [stats, setStats] = useState({
+    totalStudents: 0,
+    present: 0,
+    absent: 0,
+    leave: 0,
+  });
 
   // =========================================================
   // HELPERS
@@ -206,6 +239,12 @@ export default function NFCReaderPage() {
     );
   }
 
+  function normalizeMatchValue(value) {
+    return textValue(value)
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+  }
+
   function createSafeSlug(value) {
     return String(value || "")
       .trim()
@@ -214,13 +253,6 @@ export default function NFCReaderPage() {
       .replace(/^-+|-+$/g, "");
   }
 
-  /*
-   * Generates a readable historical session ID.
-   *
-   * Example:
-   *
-   * 20260922_152400_cloud-computing_semester-4_b_a31f82cd
-   */
   function createHistoricalSessionId() {
     const date =
       getIndiaDate().replace(
@@ -230,6 +262,11 @@ export default function NFCReaderPage() {
 
     const time =
       getIndiaTimeKey();
+
+    const departmentPart =
+      createSafeSlug(
+        department
+      ) || "department";
 
     const subjectPart =
       createSafeSlug(subject) ||
@@ -251,6 +288,7 @@ export default function NFCReaderPage() {
     return [
       date,
       time,
+      departmentPart,
       subjectPart,
       semesterPart,
       divisionPart,
@@ -258,26 +296,62 @@ export default function NFCReaderPage() {
     ].join("_");
   }
 
+  function calculateRosterStats(
+    roster
+  ) {
+    const totalStudents =
+      roster.length;
+
+    const present =
+      roster.filter(
+        (student) =>
+          student.status ===
+          "Present"
+      ).length;
+
+    const leave =
+      roster.filter(
+        (student) =>
+          student.status ===
+          "Leave"
+      ).length;
+
+    const absent =
+      roster.filter(
+        (student) =>
+          student.status ===
+          "Absent"
+      ).length;
+
+    return {
+      totalStudents,
+      present,
+      absent,
+      leave,
+    };
+  }
+
   // =========================================================
   // CLEAR LIVE CURRENT RECORDS
   // =========================================================
 
-  async function clearCurrentStudentRecords() {
-    const studentsRef =
+  async function clearCurrentCollection(
+    collectionName
+  ) {
+    const recordsRef =
       collection(
         db,
         "attendanceSessions",
         "current",
-        "students"
+        collectionName
       );
 
     const snapshot =
       await getDocs(
-        studentsRef
+        recordsRef
       );
 
     if (snapshot.empty) {
-      setLastStudent(null);
       return;
     }
 
@@ -285,16 +359,33 @@ export default function NFCReaderPage() {
       writeBatch(db);
 
     snapshot.docs.forEach(
-      (studentDoc) => {
+      (recordDoc) => {
         batch.delete(
-          studentDoc.ref
+          recordDoc.ref
         );
       }
     );
 
     await batch.commit();
+  }
+
+  async function clearCurrentAttendanceRecords() {
+    await clearCurrentCollection(
+      "students"
+    );
+
+    await clearCurrentCollection(
+      "roster"
+    );
 
     setLastStudent(null);
+
+    setStats({
+      totalStudents: 0,
+      present: 0,
+      absent: 0,
+      leave: 0,
+    });
   }
 
   // =========================================================
@@ -305,6 +396,59 @@ export default function NFCReaderPage() {
     try {
       setLoadingOptions(true);
       setOptionsError("");
+
+      // -------------------------------------------------------
+      // DEPARTMENTS
+      // -------------------------------------------------------
+
+      const departmentSnap =
+        await getDocs(
+          collection(
+            db,
+            "departments"
+          )
+        );
+
+      const loadedDepartments =
+        departmentSnap.docs
+          .map(
+            (item) => {
+              const data =
+                item.data();
+
+              const label =
+                textValue(
+                  data.name
+                ) ||
+                textValue(
+                  data.departmentName
+                ) ||
+                textValue(
+                  data.title
+                ) ||
+                item.id;
+
+              return {
+                id: item.id,
+                value: label,
+                label,
+              };
+            }
+          )
+          .filter(
+            (item) =>
+              item.value
+          )
+          .sort(
+            (a, b) =>
+              a.label.localeCompare(
+                b.label
+              )
+          );
+
+      setDepartments(
+        loadedDepartments
+      );
 
       // -------------------------------------------------------
       // ACADEMIC SETTINGS
@@ -341,7 +485,8 @@ export default function NFCReaderPage() {
               .filter(
                 (item) =>
                   item &&
-                  item.active !== false
+                  item.active !==
+                    false
               )
               .sort(
                 (a, b) =>
@@ -379,7 +524,8 @@ export default function NFCReaderPage() {
               .filter(
                 (item) =>
                   item &&
-                  item.active !== false
+                  item.active !==
+                    false
               )
               .map((item) => {
                 const value =
@@ -447,7 +593,8 @@ export default function NFCReaderPage() {
           })
           .filter(
             (item) =>
-              item.active !== false
+              item.active !==
+              false
           );
 
       setSubjects(
@@ -488,7 +635,8 @@ export default function NFCReaderPage() {
           })
           .filter(
             (item) =>
-              item.active !== false
+              item.active !==
+              false
           );
 
       setFaculties(
@@ -529,7 +677,8 @@ export default function NFCReaderPage() {
           })
           .filter(
             (item) =>
-              item.active !== false
+              item.active !==
+              false
           );
 
       setRooms(
@@ -549,7 +698,9 @@ export default function NFCReaderPage() {
         message
       );
 
-      toast.error(message);
+      toast.error(
+        message
+      );
     } finally {
       setLoadingOptions(
         false
@@ -586,6 +737,13 @@ export default function NFCReaderPage() {
           ) {
             setRunning(false);
             setActiveSessionId("");
+            setDepartment("");
+            setSubject("");
+            setFaculty("");
+            setSemester("");
+            setDivision("");
+            setRoom("");
+
             return;
           }
 
@@ -602,9 +760,17 @@ export default function NFCReaderPage() {
 
           setActiveSessionId(
             current.activeSessionId ||
-            current.sessionId ||
-            ""
+              current.sessionId ||
+              ""
           );
+
+          if (
+            current.department
+          ) {
+            setDepartment(
+              current.department
+            );
+          }
 
           if (
             current.subject
@@ -646,17 +812,92 @@ export default function NFCReaderPage() {
             );
           }
 
-          /*
-           * When current is no longer active,
-           * the live display is cleared.
-           */
-          if (!isActive) {
-            setLastStudent(null);
+          if (
+            !isActive
+          ) {
+            setLastStudent(
+              null
+            );
+          }
+
+          if (
+            Number.isFinite(
+              Number(
+                current.totalStudents
+              )
+            )
+          ) {
+            setStats({
+              totalStudents:
+                Number(
+                  current.totalStudents
+                ),
+              present:
+                Number(
+                  current.present || 0
+                ),
+              absent:
+                Number(
+                  current.absent || 0
+                ),
+              leave:
+                Number(
+                  current.leave || 0
+                ),
+            });
           }
         },
         (error) => {
           console.error(
             "Current session listener error:",
+            error
+          );
+        }
+      );
+
+    return () =>
+      unsubscribe();
+  }, []);
+
+  // =========================================================
+  // REAL-TIME CURRENT ROSTER
+  // =========================================================
+
+  useEffect(() => {
+    const rosterRef =
+      collection(
+        db,
+        "attendanceSessions",
+        "current",
+        "roster"
+      );
+
+    const unsubscribe =
+      onSnapshot(
+        rosterRef,
+        (snapshot) => {
+          const roster =
+            snapshot.docs.map(
+              (studentDoc) => ({
+                id:
+                  studentDoc.id,
+                ...studentDoc.data(),
+              })
+            );
+
+          if (
+            roster.length > 0
+          ) {
+            setStats(
+              calculateRosterStats(
+                roster
+              )
+            );
+          }
+        },
+        (error) => {
+          console.error(
+            "Live roster listener error:",
             error
           );
         }
@@ -686,7 +927,9 @@ export default function NFCReaderPage() {
           if (
             snapshot.empty
           ) {
-            setLastStudent(null);
+            setLastStudent(
+              null
+            );
             return;
           }
 
@@ -719,6 +962,11 @@ export default function NFCReaderPage() {
 
             rollNo:
               latest.rollNo ||
+              "Unknown",
+
+            department:
+              latest.department ||
+              department ||
               "Unknown",
 
             subject:
@@ -770,6 +1018,7 @@ export default function NFCReaderPage() {
     return () =>
       unsubscribe();
   }, [
+    department,
     subject,
     semester,
     division,
@@ -785,6 +1034,15 @@ export default function NFCReaderPage() {
       toast.error(
         "An attendance session is already active."
       );
+
+      return;
+    }
+
+    if (!department) {
+      toast.error(
+        "Select a department first."
+      );
+
       return;
     }
 
@@ -792,6 +1050,7 @@ export default function NFCReaderPage() {
       toast.error(
         "Select a subject first."
       );
+
       return;
     }
 
@@ -799,6 +1058,7 @@ export default function NFCReaderPage() {
       toast.error(
         "Select a faculty member first."
       );
+
       return;
     }
 
@@ -806,6 +1066,7 @@ export default function NFCReaderPage() {
       toast.error(
         "Select a semester first."
       );
+
       return;
     }
 
@@ -813,6 +1074,7 @@ export default function NFCReaderPage() {
       toast.error(
         "Select a division first."
       );
+
       return;
     }
 
@@ -820,17 +1082,117 @@ export default function NFCReaderPage() {
       toast.error(
         "Select a room first."
       );
+
       return;
     }
 
     try {
-      setRefreshing(true);
+      setRefreshing(
+        true
+      );
 
-      /*
-       * A live session can never contain
-       * attendance from a previous session.
-       */
-      await clearCurrentStudentRecords();
+      // -------------------------------------------------------
+      // CLEAR OLD LIVE SESSION DATA
+      // -------------------------------------------------------
+
+      await clearCurrentAttendanceRecords();
+
+      // -------------------------------------------------------
+      // LOAD ALL STUDENTS
+      // -------------------------------------------------------
+
+      const studentSnapshot =
+        await getDocs(
+          collection(
+            db,
+            "students"
+          )
+        );
+
+      const normalizedDepartment =
+        normalizeMatchValue(
+          department
+        );
+
+      const normalizedSemester =
+        normalizeMatchValue(
+          semester
+        );
+
+      const normalizedDivision =
+        normalizeMatchValue(
+          division
+        );
+
+      const classStudents =
+        studentSnapshot.docs
+          .map((studentDoc) => ({
+            documentId:
+              studentDoc.id,
+            ...studentDoc.data(),
+          }))
+          .filter((student) => {
+            const studentDepartment =
+              normalizeMatchValue(
+                student.department
+              );
+
+            const studentSemester =
+              normalizeMatchValue(
+                student.semester
+              );
+
+            const studentDivision =
+              normalizeMatchValue(
+                student.division
+              );
+
+            return (
+              student.status ===
+                "Active" &&
+              (
+                !student.role ||
+                student.role ===
+                  "student"
+              ) &&
+              studentDepartment ===
+                normalizedDepartment &&
+              studentSemester ===
+                normalizedSemester &&
+              studentDivision ===
+                normalizedDivision
+            );
+          })
+          .sort((a, b) =>
+            String(
+              a.rollNo ||
+                ""
+            ).localeCompare(
+              String(
+                b.rollNo ||
+                  ""
+              ),
+              undefined,
+              {
+                numeric: true,
+                sensitivity:
+                  "base",
+              }
+            )
+          );
+
+      if (
+        classStudents.length ===
+        0
+      ) {
+        throw new Error(
+          `No active students found for ${department} • ${semester} • Division ${division}.`
+        );
+      }
+
+      // -------------------------------------------------------
+      // CREATE SESSION
+      // -------------------------------------------------------
 
       const sessionId =
         createHistoricalSessionId();
@@ -852,6 +1214,14 @@ export default function NFCReaderPage() {
           "current"
         );
 
+      const totalStudents =
+        classStudents.length;
+
+      const present = 0;
+      const absent =
+        totalStudents;
+      const leave = 0;
+
       const batch =
         writeBatch(db);
 
@@ -863,13 +1233,20 @@ export default function NFCReaderPage() {
         historicalRef,
         {
           sessionId,
+
           date:
             getIndiaDate(),
 
+          department,
+
           subject,
+
           faculty,
+
           semester,
+
           division,
+
           room,
 
           status:
@@ -878,7 +1255,13 @@ export default function NFCReaderPage() {
           attendanceMethod:
             "NFC",
 
-          present: 0,
+          totalStudents,
+
+          present,
+
+          absent,
+
+          leave,
 
           createdAt:
             now,
@@ -906,10 +1289,16 @@ export default function NFCReaderPage() {
           date:
             getIndiaDate(),
 
+          department,
+
           subject,
+
           faculty,
+
           semester,
+
           division,
+
           room,
 
           status:
@@ -918,7 +1307,13 @@ export default function NFCReaderPage() {
           attendanceMethod:
             "NFC",
 
-          present: 0,
+          totalStudents,
+
+          present,
+
+          absent,
+
+          leave,
 
           createdAt:
             now,
@@ -931,11 +1326,112 @@ export default function NFCReaderPage() {
         }
       );
 
+      // -------------------------------------------------------
+      // CREATE COMPLETE CLASS ROSTER
+      // -------------------------------------------------------
+
+      for (
+        const student of
+          classStudents
+      ) {
+        const rosterData = {
+          studentId:
+            student.documentId,
+
+          uid:
+            student.uid ||
+            student.documentId,
+
+          name:
+            student.name ||
+            "Unknown",
+
+          rollNo:
+            student.rollNo ||
+            "",
+
+          department:
+            student.department ||
+            department,
+
+          semester:
+            student.semester ||
+            semester,
+
+          division:
+            student.division ||
+            division,
+
+          nfcUid:
+            student.nfcUid ||
+            "",
+
+          status:
+            "Absent",
+
+          method:
+            "Not Marked",
+
+          sessionId,
+
+          createdAt:
+            now,
+
+          updatedAt:
+            now,
+        };
+
+        const currentRosterCollection =
+  collection(
+    currentRef,
+    "roster"
+  );
+
+const historicalRosterCollection =
+  collection(
+    historicalRef,
+    "roster"
+  );
+
+const currentRosterRef =
+  doc(
+    currentRosterCollection,
+    student.documentId
+  );
+
+const historicalRosterRef =
+  doc(
+    historicalRosterCollection,
+    student.documentId
+  );
+
+        batch.set(
+          currentRosterRef,
+          rosterData
+        );
+
+        batch.set(
+          historicalRosterRef,
+          rosterData
+        );
+      }
+
       await batch.commit();
+
+      // -------------------------------------------------------
+      // UPDATE UI
+      // -------------------------------------------------------
 
       setActiveSessionId(
         sessionId
       );
+
+      setStats({
+        totalStudents,
+        present: 0,
+        absent: totalStudents,
+        leave: 0,
+      });
 
       setLastStudent(
         null
@@ -946,7 +1442,7 @@ export default function NFCReaderPage() {
       );
 
       toast.success(
-        "Attendance session started."
+        `Attendance session started for ${totalStudents} students.`
       );
     } catch (error) {
       console.error(
@@ -954,9 +1450,12 @@ export default function NFCReaderPage() {
         error
       );
 
-      toast.error(
+      const message =
         error?.message ||
-          "Failed to start attendance."
+        "Failed to start attendance.";
+
+      toast.error(
+        message
       );
     } finally {
       setRefreshing(
@@ -974,11 +1473,14 @@ export default function NFCReaderPage() {
       toast.error(
         "No attendance session is active."
       );
+
       return;
     }
 
     try {
-      setRefreshing(true);
+      setRefreshing(
+        true
+      );
 
       const currentRef =
         doc(
@@ -1021,18 +1523,32 @@ export default function NFCReaderPage() {
           sessionId
         );
 
-      const historicalSnap =
-        await getDoc(
-          historicalRef
+      const historicalRosterRef =
+        collection(
+          db,
+          "attendanceSessions",
+          sessionId,
+          "roster"
         );
 
-      if (
-        !historicalSnap.exists()
-      ) {
-        throw new Error(
-          "Historical attendance session was not found."
+      const rosterSnapshot =
+        await getDocs(
+          historicalRosterRef
         );
-      }
+
+      const roster =
+        rosterSnapshot.docs.map(
+          (studentDoc) => ({
+            id:
+              studentDoc.id,
+            ...studentDoc.data(),
+          })
+        );
+
+      const finalStats =
+        calculateRosterStats(
+          roster
+        );
 
       const now =
         new Date();
@@ -1052,6 +1568,18 @@ export default function NFCReaderPage() {
 
           endTime:
             now,
+
+          totalStudents:
+            finalStats.totalStudents,
+
+          present:
+            finalStats.present,
+
+          absent:
+            finalStats.absent,
+
+          leave:
+            finalStats.leave,
 
           updatedAt:
             now,
@@ -1077,6 +1605,18 @@ export default function NFCReaderPage() {
           endTime:
             now,
 
+          totalStudents:
+            finalStats.totalStudents,
+
+          present:
+            finalStats.present,
+
+          absent:
+            finalStats.absent,
+
+          leave:
+            finalStats.leave,
+
           updatedAt:
             now,
         },
@@ -1087,13 +1627,11 @@ export default function NFCReaderPage() {
 
       await batch.commit();
 
-      /*
-       * Clear live current attendance after
-       * canonical historical data is closed.
-       *
-       * Historical records remain untouched.
-       */
-      await clearCurrentStudentRecords();
+      // -------------------------------------------------------
+      // CLEAR LIVE CURRENT DATA
+      // -------------------------------------------------------
+
+      await clearCurrentAttendanceRecords();
 
       setRunning(
         false
@@ -1107,6 +1645,10 @@ export default function NFCReaderPage() {
         null
       );
 
+      setStats(
+        finalStats
+      );
+
       toast.success(
         "Attendance session stopped."
       );
@@ -1118,7 +1660,7 @@ export default function NFCReaderPage() {
 
       toast.error(
         error?.message ||
-          "Failed to stop attendance."
+        "Failed to stop attendance."
       );
     } finally {
       setRefreshing(
@@ -1145,19 +1687,16 @@ export default function NFCReaderPage() {
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
-
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-7xl mx-auto">
 
         {/* ===================================================
             HEADER
         ==================================================== */}
 
         <div className="bg-white rounded-2xl shadow-lg p-8 mb-6">
-
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
 
             <div>
-
               <h1 className="text-3xl font-bold">
                 NFC Attendance Reader
               </h1>
@@ -1165,11 +1704,9 @@ export default function NFCReaderPage() {
               <p className="text-gray-500 mt-2">
                 Teacher Attendance Control Panel
               </p>
-
             </div>
 
             <div className="flex items-center gap-2">
-
               <div
                 className={`w-3 h-3 rounded-full ${
                   running
@@ -1179,17 +1716,12 @@ export default function NFCReaderPage() {
               />
 
               <span className="font-medium">
-
                 {running
                   ? "Attendance Active"
                   : "Attendance Stopped"}
-
               </span>
-
             </div>
-
           </div>
-
         </div>
 
         {/* ===================================================
@@ -1197,9 +1729,7 @@ export default function NFCReaderPage() {
         ==================================================== */}
 
         {loadingOptions && (
-
           <div className="bg-white rounded-2xl shadow-lg p-6 mb-6 flex items-center gap-3">
-
             <Loader2
               className="animate-spin"
               size={20}
@@ -1208,9 +1738,7 @@ export default function NFCReaderPage() {
             <span>
               Loading attendance options...
             </span>
-
           </div>
-
         )}
 
         {/* ===================================================
@@ -1218,9 +1746,7 @@ export default function NFCReaderPage() {
         ==================================================== */}
 
         {optionsError && (
-
           <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-6 mb-6">
-
             <p className="font-semibold">
               {optionsError}
             </p>
@@ -1235,17 +1761,12 @@ export default function NFCReaderPage() {
               }
               className="mt-4 inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-4 py-2 rounded-xl"
             >
-
               <RefreshCw
                 size={17}
               />
-
               Retry
-
             </button>
-
           </div>
-
         )}
 
         {/* ===================================================
@@ -1255,18 +1776,14 @@ export default function NFCReaderPage() {
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
 
           <div className="flex items-center justify-between mb-6">
-
             <div>
-
               <h2 className="text-xl font-bold">
                 Attendance Session
               </h2>
 
               <p className="text-gray-500 text-sm mt-1">
-                Configure the live class before scanning
-                student NFC cards.
+                Configure the live class before scanning student NFC cards.
               </p>
-
             </div>
 
             <button
@@ -1280,7 +1797,6 @@ export default function NFCReaderPage() {
               }
               className="inline-flex items-center gap-2 border border-gray-300 hover:bg-gray-50 disabled:opacity-50 px-4 py-2 rounded-xl"
             >
-
               <RefreshCw
                 size={17}
                 className={
@@ -1291,17 +1807,53 @@ export default function NFCReaderPage() {
               />
 
               Refresh
-
             </button>
-
           </div>
 
           <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5">
 
+            {/* DEPARTMENT */}
+
+            <div>
+              <label className="font-medium block mb-2">
+                Department
+              </label>
+
+              <select
+                value={department}
+                onChange={(e) =>
+                  setDepartment(
+                    e.target.value
+                  )
+                }
+                disabled={
+                  running ||
+                  loadingOptions
+                }
+                className="w-full border rounded-xl p-3 bg-white disabled:bg-gray-100"
+              >
+                <option value="">
+                  Select Department
+                </option>
+
+                {departments.map(
+                  (item) => (
+                    <option
+                      key={item.id}
+                      value={
+                        item.value
+                      }
+                    >
+                      {item.label}
+                    </option>
+                  )
+                )}
+              </select>
+            </div>
+
             {/* SUBJECT */}
 
             <div>
-
               <label className="font-medium block mb-2">
                 Subject
               </label>
@@ -1319,7 +1871,6 @@ export default function NFCReaderPage() {
                 }
                 className="w-full border rounded-xl p-3 bg-white disabled:bg-gray-100"
               >
-
                 <option value="">
                   Select Subject
                 </option>
@@ -1328,21 +1879,20 @@ export default function NFCReaderPage() {
                   (item) => (
                     <option
                       key={item.id}
-                      value={item.value}
+                      value={
+                        item.value
+                      }
                     >
                       {item.label}
                     </option>
                   )
                 )}
-
               </select>
-
             </div>
 
             {/* FACULTY */}
 
             <div>
-
               <label className="font-medium block mb-2">
                 Faculty
               </label>
@@ -1360,7 +1910,6 @@ export default function NFCReaderPage() {
                 }
                 className="w-full border rounded-xl p-3 bg-white disabled:bg-gray-100"
               >
-
                 <option value="">
                   Select Faculty
                 </option>
@@ -1369,21 +1918,20 @@ export default function NFCReaderPage() {
                   (item) => (
                     <option
                       key={item.id}
-                      value={item.value}
+                      value={
+                        item.value
+                      }
                     >
                       {item.label}
                     </option>
                   )
                 )}
-
               </select>
-
             </div>
 
             {/* ROOM */}
 
             <div>
-
               <label className="font-medium block mb-2">
                 Room
               </label>
@@ -1401,7 +1949,6 @@ export default function NFCReaderPage() {
                 }
                 className="w-full border rounded-xl p-3 bg-white disabled:bg-gray-100"
               >
-
                 <option value="">
                   Select Room
                 </option>
@@ -1410,21 +1957,20 @@ export default function NFCReaderPage() {
                   (item) => (
                     <option
                       key={item.id}
-                      value={item.value}
+                      value={
+                        item.value
+                      }
                     >
                       {item.label}
                     </option>
                   )
                 )}
-
               </select>
-
             </div>
 
             {/* SEMESTER */}
 
             <div>
-
               <label className="font-medium block mb-2">
                 Semester
               </label>
@@ -1442,7 +1988,6 @@ export default function NFCReaderPage() {
                 }
                 className="w-full border rounded-xl p-3 bg-white disabled:bg-gray-100"
               >
-
                 <option value="">
                   Select Semester
                 </option>
@@ -1451,21 +1996,20 @@ export default function NFCReaderPage() {
                   (item) => (
                     <option
                       key={item.id}
-                      value={item.value}
+                      value={
+                        item.value
+                      }
                     >
                       {item.label}
                     </option>
                   )
                 )}
-
               </select>
-
             </div>
 
             {/* DIVISION */}
 
             <div>
-
               <label className="font-medium block mb-2">
                 Division
               </label>
@@ -1483,7 +2027,6 @@ export default function NFCReaderPage() {
                 }
                 className="w-full border rounded-xl p-3 bg-white disabled:bg-gray-100"
               >
-
                 <option value="">
                   Select Division
                 </option>
@@ -1492,15 +2035,15 @@ export default function NFCReaderPage() {
                   (item) => (
                     <option
                       key={item.id}
-                      value={item.value}
+                      value={
+                        item.value
+                      }
                     >
                       {item.label}
                     </option>
                   )
                 )}
-
               </select>
-
             </div>
 
           </div>
@@ -1520,13 +2063,11 @@ export default function NFCReaderPage() {
               }
               className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-xl flex items-center gap-2"
             >
-
               <PlayCircle
                 size={20}
               />
 
               Start Attendance
-
             </button>
 
             <button
@@ -1539,22 +2080,18 @@ export default function NFCReaderPage() {
               }
               className="bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-xl flex items-center gap-2"
             >
-
               <Square
                 size={20}
               />
 
               Stop Attendance
-
             </button>
-
           </div>
 
           {/* ACTIVE SESSION INFORMATION */}
 
           {running &&
             activeSessionId && (
-
               <div className="mt-5 bg-blue-50 border border-blue-200 rounded-xl p-4">
 
                 <p className="text-blue-700 font-semibold">
@@ -1565,9 +2102,84 @@ export default function NFCReaderPage() {
                   {activeSessionId}
                 </p>
 
-              </div>
+                <div className="mt-2 text-sm text-blue-700">
+                  <span className="font-semibold">
+                    Class:
+                  </span>{" "}
+                  {department} •{" "}
+                  {semester} • Division{" "}
+                  {division}
+                </div>
 
+              </div>
             )}
+        </div>
+
+        {/* ===================================================
+            SESSION SUMMARY
+        ==================================================== */}
+
+        <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-5 mb-6">
+
+          <div className="bg-white rounded-2xl shadow-lg p-6">
+            <Users
+              className="mb-3 text-blue-600"
+              size={28}
+            />
+
+            <p className="text-gray-500 text-sm">
+              Total Students
+            </p>
+
+            <h2 className="text-3xl font-bold mt-1">
+              {stats.totalStudents}
+            </h2>
+          </div>
+
+          <div className="bg-green-50 rounded-2xl shadow-lg p-6">
+            <CheckCircle
+              className="mb-3 text-green-600"
+              size={28}
+            />
+
+            <p className="text-gray-500 text-sm">
+              Present
+            </p>
+
+            <h2 className="text-3xl font-bold mt-1 text-green-700">
+              {stats.present}
+            </h2>
+          </div>
+
+          <div className="bg-red-50 rounded-2xl shadow-lg p-6">
+            <UserX
+              className="mb-3 text-red-600"
+              size={28}
+            />
+
+            <p className="text-gray-500 text-sm">
+              Absent
+            </p>
+
+            <h2 className="text-3xl font-bold mt-1 text-red-700">
+              {stats.absent}
+            </h2>
+          </div>
+
+          <div className="bg-yellow-50 rounded-2xl shadow-lg p-6">
+            <Clock3
+              className="mb-3 text-yellow-600"
+              size={28}
+            />
+
+            <p className="text-gray-500 text-sm">
+              Leave
+            </p>
+
+            <h2 className="text-3xl font-bold mt-1 text-yellow-700">
+              {stats.leave}
+            </h2>
+          </div>
 
         </div>
 
@@ -1606,27 +2218,21 @@ export default function NFCReaderPage() {
               />
 
               <h2 className="text-2xl font-bold">
-
                 {running
                   ? "Waiting for NFC Card..."
                   : "Attendance Stopped"}
-
               </h2>
 
             </div>
 
             <p className="text-gray-500 mt-2">
-
               {running
                 ? "Open the AUMNex NFC Reader app on the Moto G84 and tap a student NFC card."
                 : "Configure the session and click Start Attendance."}
-
             </p>
 
             {running && (
-
               <div className="mt-6 bg-green-50 border border-green-200 rounded-xl p-4">
-
                 <p className="text-green-700 font-semibold">
                   Physical NFC reader is ready
                 </p>
@@ -1634,11 +2240,8 @@ export default function NFCReaderPage() {
                 <p className="text-green-600 text-sm mt-1">
                   No browser simulation is used.
                 </p>
-
               </div>
-
             )}
-
           </div>
 
           {/* LAST STUDENT */}
@@ -1650,17 +2253,14 @@ export default function NFCReaderPage() {
             </h2>
 
             {lastStudent ? (
-
               <div className="space-y-5">
 
                 <div className="flex items-center gap-3">
-
                   <User
                     className="text-blue-600"
                   />
 
                   <div>
-
                     <p className="text-gray-500 text-sm">
                       Name
                     </p>
@@ -1668,19 +2268,15 @@ export default function NFCReaderPage() {
                     <h3 className="font-bold">
                       {lastStudent.name}
                     </h3>
-
                   </div>
-
                 </div>
 
                 <div className="flex items-center gap-3">
-
                   <GraduationCap
                     className="text-green-600"
                   />
 
                   <div>
-
                     <p className="text-gray-500 text-sm">
                       Roll Number
                     </p>
@@ -1688,19 +2284,31 @@ export default function NFCReaderPage() {
                     <h3 className="font-bold">
                       {lastStudent.rollNo}
                     </h3>
-
                   </div>
-
                 </div>
 
                 <div className="flex items-center gap-3">
+                  <Building2
+                    className="text-slate-600"
+                  />
 
+                  <div>
+                    <p className="text-gray-500 text-sm">
+                      Department
+                    </p>
+
+                    <h3 className="font-bold">
+                      {lastStudent.department}
+                    </h3>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
                   <BookOpen
                     className="text-purple-600"
                   />
 
                   <div>
-
                     <p className="text-gray-500 text-sm">
                       Subject
                     </p>
@@ -1708,19 +2316,15 @@ export default function NFCReaderPage() {
                     <h3 className="font-bold">
                       {lastStudent.subject}
                     </h3>
-
                   </div>
-
                 </div>
 
                 <div className="flex items-center gap-3">
-
                   <Users
                     className="text-orange-600"
                   />
 
                   <div>
-
                     <p className="text-gray-500 text-sm">
                       Division
                     </p>
@@ -1728,19 +2332,15 @@ export default function NFCReaderPage() {
                     <h3 className="font-bold">
                       {lastStudent.division}
                     </h3>
-
                   </div>
-
                 </div>
 
                 <div className="flex items-center gap-3">
-
                   <GraduationCap
                     className="text-indigo-600"
                   />
 
                   <div>
-
                     <p className="text-gray-500 text-sm">
                       Semester
                     </p>
@@ -1748,19 +2348,15 @@ export default function NFCReaderPage() {
                     <h3 className="font-bold">
                       {lastStudent.semester}
                     </h3>
-
                   </div>
-
                 </div>
 
                 <div className="flex items-center gap-3">
-
                   <Building2
                     className="text-slate-600"
                   />
 
                   <div>
-
                     <p className="text-gray-500 text-sm">
                       Room
                     </p>
@@ -1768,19 +2364,15 @@ export default function NFCReaderPage() {
                     <h3 className="font-bold">
                       {lastStudent.room}
                     </h3>
-
                   </div>
-
                 </div>
 
                 <div className="flex items-center gap-3">
-
                   <CheckCircle
                     className="text-green-600"
                   />
 
                   <div>
-
                     <p className="text-gray-500 text-sm">
                       Status
                     </p>
@@ -1788,13 +2380,10 @@ export default function NFCReaderPage() {
                     <h3 className="font-bold text-green-600">
                       {lastStudent.status}
                     </h3>
-
                   </div>
-
                 </div>
 
                 <div className="bg-green-100 rounded-xl p-4 text-center">
-
                   <h3 className="text-lg font-bold text-green-700">
                     Attendance Marked Successfully
                   </h3>
@@ -1803,13 +2392,10 @@ export default function NFCReaderPage() {
                     {lastStudent.time ||
                       "Time unavailable"}
                   </p>
-
                 </div>
 
               </div>
-
             ) : (
-
               <div className="text-center text-gray-500 py-20">
 
                 <Radio
@@ -1824,17 +2410,13 @@ export default function NFCReaderPage() {
                 <p className="text-sm mt-2">
                   Start attendance and scan a physical NFC card.
                 </p>
-
               </div>
-
             )}
-
           </div>
 
         </div>
 
       </div>
-
     </div>
   );
 }

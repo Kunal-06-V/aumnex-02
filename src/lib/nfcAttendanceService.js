@@ -13,6 +13,13 @@ function normalizeNfcUid(value) {
     .toUpperCase();
 }
 
+function normalizeMatchValue(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
 export async function markNfcAttendance(
   rawNfcUid
 ) {
@@ -114,7 +121,8 @@ export async function markNfcAttendance(
   }
 
   if (
-    student.status !== "Active"
+    student.status !==
+    "Active"
   ) {
     const error = new Error(
       "This student's account is not active."
@@ -147,7 +155,16 @@ export async function markNfcAttendance(
       .doc(studentDoc.id);
 
   // ==========================================================
-  // 6. HISTORY + NOTIFICATION
+  // 6. CURRENT LIVE ROSTER
+  // ==========================================================
+
+  const currentRosterRef =
+    sessionRef
+      .collection("roster")
+      .doc(studentDoc.id);
+
+  // ==========================================================
+  // 7. HISTORY + NOTIFICATION
   // ==========================================================
 
   const historyRef =
@@ -165,7 +182,7 @@ export async function markNfcAttendance(
       .doc();
 
   // ==========================================================
-  // 7. TRANSACTION
+  // 8. TRANSACTION
   // ==========================================================
 
   const result =
@@ -188,6 +205,15 @@ export async function markNfcAttendance(
         const currentAttendanceSnap =
           await transaction.get(
             currentAttendanceRef
+          );
+
+        // ------------------------------------------------------
+        // READ CURRENT ROSTER
+        // ------------------------------------------------------
+
+        const currentRosterSnap =
+          await transaction.get(
+            currentRosterRef
           );
 
         // ------------------------------------------------------
@@ -299,6 +325,7 @@ export async function markNfcAttendance(
         // ------------------------------------------------------
 
         const requiredFields = [
+          "department",
           "subject",
           "semester",
           "division",
@@ -351,6 +378,15 @@ export async function markNfcAttendance(
               studentDoc.id
             );
 
+        const historicalRosterRef =
+          historicalSessionRef
+            .collection(
+              "roster"
+            )
+            .doc(
+              studentDoc.id
+            );
+
         const historicalSessionSnap =
           await transaction.get(
             historicalSessionRef
@@ -359,6 +395,11 @@ export async function markNfcAttendance(
         const historicalAttendanceSnap =
           await transaction.get(
             historicalAttendanceRef
+          );
+
+        const historicalRosterSnap =
+          await transaction.get(
+            historicalRosterRef
           );
 
         // ------------------------------------------------------
@@ -418,17 +459,49 @@ export async function markNfcAttendance(
         }
 
         // ------------------------------------------------------
-        // SEMESTER + DIVISION SECURITY
+        // STUDENT CLASS SECURITY
         // ------------------------------------------------------
 
-        if (
-          currentStudent.semester !==
-            session.semester ||
-          currentStudent.division !==
+        const studentDepartment =
+          normalizeMatchValue(
+            currentStudent.department
+          );
+
+        const sessionDepartment =
+          normalizeMatchValue(
+            session.department
+          );
+
+        const studentSemester =
+          normalizeMatchValue(
+            currentStudent.semester
+          );
+
+        const sessionSemester =
+          normalizeMatchValue(
+            session.semester
+          );
+
+        const studentDivision =
+          normalizeMatchValue(
+            currentStudent.division
+          );
+
+        const sessionDivision =
+          normalizeMatchValue(
             session.division
+          );
+
+        if (
+          studentDepartment !==
+            sessionDepartment ||
+          studentSemester !==
+            sessionSemester ||
+          studentDivision !==
+            sessionDivision
         ) {
           const error = new Error(
-            `Student belongs to ${currentStudent.semester}, Division ${currentStudent.division}. Current session is ${session.semester}, Division ${session.division}.`
+            `Student belongs to ${currentStudent.department}, ${currentStudent.semester}, Division ${currentStudent.division}. Current session is ${session.department}, ${session.semester}, Division ${session.division}.`
           );
 
           error.code =
@@ -438,7 +511,7 @@ export async function markNfcAttendance(
         }
 
         // ------------------------------------------------------
-        // DUPLICATE CHECK — LIVE SESSION
+        // DUPLICATE CHECK — LIVE ATTENDANCE
         // ------------------------------------------------------
 
         if (
@@ -459,7 +532,7 @@ export async function markNfcAttendance(
         }
 
         // ------------------------------------------------------
-        // DUPLICATE CHECK — HISTORICAL SESSION
+        // DUPLICATE CHECK — HISTORICAL ATTENDANCE
         // ------------------------------------------------------
 
         if (
@@ -480,8 +553,80 @@ export async function markNfcAttendance(
         }
 
         // ------------------------------------------------------
-        // SERVER TIMESTAMP
+        // DUPLICATE CHECK — ROSTER
+        //
+        // This protects against a case where a manual
+        // attendance change already marked this student
+        // Present before their NFC scan.
         // ------------------------------------------------------
+
+        if (
+          currentRosterSnap.exists &&
+          currentRosterSnap.data()
+            .status ===
+            "Present"
+        ) {
+          const error = new Error(
+            "Attendance already marked for this student in the current session."
+          );
+
+          error.code =
+            "ALREADY_MARKED";
+
+          throw error;
+        }
+
+        if (
+          historicalRosterSnap.exists &&
+          historicalRosterSnap.data()
+            .status ===
+            "Present"
+        ) {
+          const error = new Error(
+            "Attendance already marked for this student in the current session."
+          );
+
+          error.code =
+            "ALREADY_MARKED";
+
+          throw error;
+        }
+
+        // ------------------------------------------------------
+        // PREVIOUS ROSTER STATUS
+        // ------------------------------------------------------
+
+        const previousRosterStatus =
+          currentRosterSnap.exists
+            ? currentRosterSnap.data()
+                .status
+            : null;
+
+        // ======================================================
+        // COUNTER CHANGES
+        // ======================================================
+
+        let presentIncrement = 1;
+        let absentIncrement = 0;
+        let leaveIncrement = 0;
+
+        if (
+          previousRosterStatus ===
+          "Absent"
+        ) {
+          absentIncrement = -1;
+        }
+
+        if (
+          previousRosterStatus ===
+          "Leave"
+        ) {
+          leaveIncrement = -1;
+        }
+
+        // ======================================================
+        // SERVER TIMESTAMP
+        // ======================================================
 
         const markedAt =
           FieldValue.serverTimestamp();
@@ -501,6 +646,10 @@ export async function markNfcAttendance(
 
             rollNo:
               currentStudent.rollNo,
+
+            department:
+              currentStudent.department ||
+              session.department,
 
             status:
               "Present",
@@ -548,6 +697,10 @@ export async function markNfcAttendance(
             rollNo:
               currentStudent.rollNo,
 
+            department:
+              currentStudent.department ||
+              session.department,
+
             status:
               "Present",
 
@@ -579,7 +732,119 @@ export async function markNfcAttendance(
         );
 
         // ======================================================
-        // WRITE 3 — LIVE PRESENT COUNT
+        // WRITE 3 — LIVE ROSTER
+        // ======================================================
+
+        const liveRosterData = {
+          studentId:
+            studentDoc.id,
+
+          uid:
+            studentDoc.id,
+
+          name:
+            currentStudent.name ||
+            "Unknown",
+
+          rollNo:
+            currentStudent.rollNo ||
+            "",
+
+          department:
+            currentStudent.department ||
+            session.department,
+
+          semester:
+            currentStudent.semester ||
+            session.semester,
+
+          division:
+            currentStudent.division ||
+            session.division,
+
+          nfcUid,
+
+          status:
+            "Present",
+
+          method:
+            "NFC",
+
+          sessionId:
+            activeSessionId,
+
+          markedAt,
+
+          updatedAt:
+            new Date(),
+        };
+
+        transaction.set(
+          currentRosterRef,
+          liveRosterData,
+          {
+            merge: true,
+          }
+        );
+
+        // ======================================================
+        // WRITE 4 — HISTORICAL ROSTER
+        // ======================================================
+
+        const historicalRosterData = {
+          studentId:
+            studentDoc.id,
+
+          uid:
+            studentDoc.id,
+
+          name:
+            currentStudent.name ||
+            "Unknown",
+
+          rollNo:
+            currentStudent.rollNo ||
+            "",
+
+          department:
+            currentStudent.department ||
+            session.department,
+
+          semester:
+            currentStudent.semester ||
+            session.semester,
+
+          division:
+            currentStudent.division ||
+            session.division,
+
+          nfcUid,
+
+          status:
+            "Present",
+
+          method:
+            "NFC",
+
+          sessionId:
+            activeSessionId,
+
+          markedAt,
+
+          updatedAt:
+            new Date(),
+        };
+
+        transaction.set(
+          historicalRosterRef,
+          historicalRosterData,
+          {
+            merge: true,
+          }
+        );
+
+        // ======================================================
+        // WRITE 5 — LIVE SESSION COUNTERS
         // ======================================================
 
         transaction.update(
@@ -587,15 +852,26 @@ export async function markNfcAttendance(
           {
             present:
               FieldValue.increment(
-                1
+                presentIncrement
               ),
+
+            absent:
+              FieldValue.increment(
+                absentIncrement
+              ),
+
+            leave:
+              FieldValue.increment(
+                leaveIncrement
+              ),
+
             updatedAt:
               new Date(),
           }
         );
 
         // ======================================================
-        // WRITE 4 — HISTORICAL PRESENT COUNT
+        // WRITE 6 — HISTORICAL COUNTERS
         // ======================================================
 
         transaction.update(
@@ -603,15 +879,26 @@ export async function markNfcAttendance(
           {
             present:
               FieldValue.increment(
-                1
+                presentIncrement
               ),
+
+            absent:
+              FieldValue.increment(
+                absentIncrement
+              ),
+
+            leave:
+              FieldValue.increment(
+                leaveIncrement
+              ),
+
             updatedAt:
               new Date(),
           }
         );
 
         // ======================================================
-        // WRITE 5 — STUDENT SUMMARY
+        // WRITE 7 — STUDENT SUMMARY
         // ======================================================
 
         transaction.update(
@@ -640,7 +927,7 @@ export async function markNfcAttendance(
         );
 
         // ======================================================
-        // WRITE 6 — ATTENDANCE HISTORY
+        // WRITE 8 — ATTENDANCE HISTORY
         // ======================================================
 
         transaction.set(
@@ -654,6 +941,10 @@ export async function markNfcAttendance(
 
             rollNo:
               currentStudent.rollNo,
+
+            department:
+              currentStudent.department ||
+              session.department,
 
             subject:
               session.subject,
@@ -691,7 +982,7 @@ export async function markNfcAttendance(
         );
 
         // ======================================================
-        // WRITE 7 — STUDENT NOTIFICATION
+        // WRITE 9 — STUDENT NOTIFICATION
         // ======================================================
 
         transaction.set(
@@ -708,6 +999,10 @@ export async function markNfcAttendance(
 
             message:
               `${session.subject} attendance marked successfully via NFC.`,
+
+            department:
+              currentStudent.department ||
+              session.department,
 
             subject:
               session.subject,
@@ -763,6 +1058,10 @@ export async function markNfcAttendance(
             rollNo:
               currentStudent.rollNo,
 
+            department:
+              currentStudent.department ||
+              session.department,
+
             semester:
               currentStudent.semester,
 
@@ -771,6 +1070,9 @@ export async function markNfcAttendance(
 
             nfcUid,
           },
+
+          department:
+            session.department,
 
           subject:
             session.subject,

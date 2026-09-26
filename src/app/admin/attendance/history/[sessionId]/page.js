@@ -7,7 +7,7 @@ import {
   doc,
   getDocs,
   onSnapshot,
-  updateDoc,
+  writeBatch,
   deleteDoc,
   query,
   where,
@@ -20,6 +20,8 @@ import {
   XCircle,
   Clock3,
   ArrowLeft,
+  Users,
+  Building2,
 } from "lucide-react";
 
 import toast from "react-hot-toast";
@@ -40,21 +42,37 @@ export default function AttendanceSessionDetails() {
   const router = useRouter();
 
   const [session, setSession] = useState(null);
-  const [students, setStudents] = useState([]);
 
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  /*
+   * This is now the complete class roster.
+   *
+   * New sessions contain every active student
+   * from the selected department + semester + division.
+   */
+  const [students, setStudents] =
+    useState([]);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [saving, setSaving] =
+    useState(false);
 
   const [notFound, setNotFound] =
     useState(false);
 
-  const [error, setError] = useState("");
+  const [error, setError] =
+    useState("");
 
   const [search, setSearch] =
     useState("");
 
   const [filter, setFilter] =
     useState("All");
+
+  // ============================================================
+  // LOAD SESSION + ROSTER
+  // ============================================================
 
   useEffect(() => {
     if (!sessionId) {
@@ -65,18 +83,38 @@ export default function AttendanceSessionDetails() {
     setNotFound(false);
     setError("");
 
-    const sessionRef = doc(
-      db,
-      "attendanceSessions",
-      sessionId
-    );
+    const sessionRef =
+      doc(
+        db,
+        "attendanceSessions",
+        sessionId
+      );
 
-    const studentsRef = collection(
-      db,
-      "attendanceSessions",
-      sessionId,
-      "students"
-    );
+    const rosterRef =
+      collection(
+        db,
+        "attendanceSessions",
+        sessionId,
+        "roster"
+      );
+
+    /*
+     * Legacy fallback:
+     *
+     * Older sessions were created before the roster
+     * model existed. If their roster is empty,
+     * we temporarily read the old students collection
+     * so old attendance history does not disappear.
+     */
+    const oldStudentsRef =
+      collection(
+        db,
+        "attendanceSessions",
+        sessionId,
+        "students"
+      );
+
+    let latestSession = null;
 
     const unsubscribeSession =
       onSnapshot(
@@ -91,8 +129,14 @@ export default function AttendanceSessionDetails() {
             return;
           }
 
+          const sessionData =
+            snapshot.data();
+
+          latestSession =
+            sessionData;
+
           setSession(
-            snapshot.data()
+            sessionData
           );
 
           setNotFound(false);
@@ -106,6 +150,7 @@ export default function AttendanceSessionDetails() {
 
           setSession(null);
           setStudents([]);
+
           setError(
             snapshotError?.message ||
               "Failed to load attendance session."
@@ -115,32 +160,103 @@ export default function AttendanceSessionDetails() {
         }
       );
 
-    const unsubscribeStudents =
+    const unsubscribeRoster =
       onSnapshot(
-        studentsRef,
-        (snapshot) => {
-          const data =
-            snapshot.docs.map(
-              (studentDoc) => ({
-                id: studentDoc.id,
-                ...studentDoc.data(),
-              })
+        rosterRef,
+        async (rosterSnapshot) => {
+          /*
+           * NEW SESSION:
+           * use the complete roster.
+           */
+          if (!rosterSnapshot.empty) {
+            const data =
+              rosterSnapshot.docs
+                .map(
+                  (studentDoc) => ({
+                    id:
+                      studentDoc.id,
+                    ...studentDoc.data(),
+                  })
+                )
+                .sort(
+                  (a, b) =>
+                    String(
+                      a.rollNo || ""
+                    ).localeCompare(
+                      String(
+                        b.rollNo || ""
+                      ),
+                      undefined,
+                      {
+                        numeric: true,
+                        sensitivity:
+                          "base",
+                      }
+                    )
+                );
+
+            setStudents(data);
+
+            return;
+          }
+
+          /*
+           * LEGACY SESSION FALLBACK
+           */
+          try {
+            const oldSnapshot =
+              await getDocs(
+                oldStudentsRef
+              );
+
+            const oldData =
+              oldSnapshot.docs
+                .map(
+                  (studentDoc) => ({
+                    id:
+                      studentDoc.id,
+                    ...studentDoc.data(),
+                  })
+                )
+                .sort(
+                  (a, b) =>
+                    String(
+                      a.rollNo || ""
+                    ).localeCompare(
+                      String(
+                        b.rollNo || ""
+                      ),
+                      undefined,
+                      {
+                        numeric: true,
+                        sensitivity:
+                          "base",
+                      }
+                    )
+                );
+
+            setStudents(oldData);
+          } catch (fallbackError) {
+            console.error(
+              "Legacy attendance fallback error:",
+              fallbackError
             );
 
-          setStudents(data);
+            setStudents([]);
+          }
         },
         (snapshotError) => {
           console.error(
-            "Attendance students load error:",
+            "Attendance roster load error:",
             snapshotError
           );
 
           setStudents([]);
 
-          if (!session) {
+          if (!latestSession) {
             setError(
               snapshotError?.message ||
-                "Failed to load attendance students."
+                "Failed to load attendance roster."
             );
           }
         }
@@ -148,38 +264,89 @@ export default function AttendanceSessionDetails() {
 
     return () => {
       unsubscribeSession();
-      unsubscribeStudents();
+      unsubscribeRoster();
     };
   }, [sessionId]);
+
+  // ============================================================
+  // UPDATE LOCAL STATUS
+  // ============================================================
 
   function updateStudentStatus(
     studentId,
     status
   ) {
-    setStudents((prev) =>
-      prev.map((student) =>
-        student.id === studentId
-          ? {
-              ...student,
-              status,
-            }
-          : student
-      )
+    setStudents(
+      (previous) =>
+        previous.map(
+          (student) =>
+            student.id ===
+            studentId
+              ? {
+                  ...student,
+                  status,
+                  method:
+                    status ===
+                    "Present"
+                      ? student.method ===
+                        "NFC"
+                        ? "NFC"
+                        : "Manual"
+                      : "Manual",
+                }
+              : student
+        )
     );
   }
+
+  // ============================================================
+  // COUNTS
+  // ============================================================
+
+  const totalStudents =
+    students.length;
+
+  const present =
+    students.filter(
+      (student) =>
+        student.status ===
+        "Present"
+    ).length;
+
+  const absent =
+    students.filter(
+      (student) =>
+        student.status ===
+        "Absent"
+    ).length;
+
+  const leave =
+    students.filter(
+      (student) =>
+        student.status ===
+        "Leave"
+    ).length;
+
+  // ============================================================
+  // SAVE CHANGES
+  // ============================================================
 
   async function saveChanges() {
     if (!session) {
       toast.error(
         "Attendance session not found."
       );
+
       return;
     }
 
-    if (students.length === 0) {
+    if (
+      students.length === 0
+    ) {
       toast.error(
-        "No attendance students found."
+        "No attendance roster found."
       );
+
       return;
     }
 
@@ -190,39 +357,98 @@ export default function AttendanceSessionDetails() {
             "Present",
             "Absent",
             "Leave",
-          ].includes(student.status)
+          ].includes(
+            student.status
+          )
       );
 
-    if (hasUnmarkedStudent) {
+    if (
+      hasUnmarkedStudent
+    ) {
       toast.error(
         "Please mark attendance for every student."
       );
+
       return;
     }
 
     try {
       setSaving(true);
 
-      for (const student of students) {
-        const studentRef = doc(
-          db,
-          "attendanceSessions",
-          sessionId,
-          "students",
-          student.id
-        );
+      const batch =
+        writeBatch(db);
 
-        await updateDoc(
+      /*
+       * Update every roster student.
+       */
+      for (
+        const student of
+          students
+      ) {
+        const studentRef =
+          doc(
+            db,
+            "attendanceSessions",
+            sessionId,
+            "roster",
+            student.id
+          );
+
+        batch.set(
           studentRef,
           {
             status:
               student.status,
+
             method:
               student.method ||
-              "Manual",
+              (
+                student.status ===
+                "Present"
+                  ? "Manual"
+                  : "Manual"
+              ),
+
+            updatedAt:
+              new Date(),
+          },
+          {
+            merge: true,
           }
         );
       }
+
+      /*
+       * Keep session summary fields
+       * synchronized with the roster.
+       */
+      const sessionRef =
+        doc(
+          db,
+          "attendanceSessions",
+          sessionId
+        );
+
+      batch.set(
+        sessionRef,
+        {
+          totalStudents,
+
+          present,
+
+          absent,
+
+          leave,
+
+          updatedAt:
+            new Date(),
+        },
+        {
+          merge: true,
+        }
+      );
+
+      await batch.commit();
 
       toast.success(
         "Attendance updated successfully!"
@@ -242,109 +468,147 @@ export default function AttendanceSessionDetails() {
     }
   }
 
-async function deleteSession() {
-  if (!session) {
-    toast.error(
-      "Attendance session not found."
-    );
-    return;
-  }
+  // ============================================================
+  // DELETE SESSION
+  // ============================================================
 
-  const confirmed =
-    window.confirm(
-      "Are you sure you want to delete this attendance session?"
-    );
-
-  if (!confirmed) {
-    return;
-  }
-
-  try {
-    /*
-     * 1. Delete student attendance
-     *    subdocuments.
-     */
-    const studentsRef =
-      collection(
-        db,
-        "attendanceSessions",
-        sessionId,
-        "students"
+  async function deleteSession() {
+    if (!session) {
+      toast.error(
+        "Attendance session not found."
       );
 
-    const studentsSnapshot =
-      await getDocs(studentsRef);
-
-    for (
-      const studentDoc of
-        studentsSnapshot.docs
-    ) {
-      await deleteDoc(
-        studentDoc.ref
-      );
+      return;
     }
 
-    /*
-     * 2. Delete matching attendance
-     *    history records.
-     */
-    const historyQuery =
-      query(
+    const confirmed =
+      window.confirm(
+        "Are you sure you want to delete this attendance session?"
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      // ---------------------------------------------------------
+      // 1. DELETE ROSTER
+      // ---------------------------------------------------------
+
+      const rosterRef =
         collection(
           db,
-          "attendanceHistory"
-        ),
-        where(
-          "sessionId",
-          "==",
+          "attendanceSessions",
+          sessionId,
+          "roster"
+        );
+
+      const rosterSnapshot =
+        await getDocs(
+          rosterRef
+        );
+
+      for (
+        const studentDoc of
+          rosterSnapshot.docs
+      ) {
+        await deleteDoc(
+          studentDoc.ref
+        );
+      }
+
+      // ---------------------------------------------------------
+      // 2. DELETE STUDENT ATTENDANCE
+      // ---------------------------------------------------------
+
+      const studentsRef =
+        collection(
+          db,
+          "attendanceSessions",
+          sessionId,
+          "students"
+        );
+
+      const studentsSnapshot =
+        await getDocs(
+          studentsRef
+        );
+
+      for (
+        const studentDoc of
+          studentsSnapshot.docs
+      ) {
+        await deleteDoc(
+          studentDoc.ref
+        );
+      }
+
+      // ---------------------------------------------------------
+      // 3. DELETE MATCHING ATTENDANCE HISTORY
+      // ---------------------------------------------------------
+
+      const historyQuery =
+        query(
+          collection(
+            db,
+            "attendanceHistory"
+          ),
+          where(
+            "sessionId",
+            "==",
+            sessionId
+          )
+        );
+
+      const historySnapshot =
+        await getDocs(
+          historyQuery
+        );
+
+      for (
+        const historyDoc of
+          historySnapshot.docs
+      ) {
+        await deleteDoc(
+          historyDoc.ref
+        );
+      }
+
+      // ---------------------------------------------------------
+      // 4. DELETE SESSION
+      // ---------------------------------------------------------
+
+      await deleteDoc(
+        doc(
+          db,
+          "attendanceSessions",
           sessionId
         )
       );
 
-    const historySnapshot =
-      await getDocs(
-        historyQuery
+      toast.success(
+        "Attendance session and history deleted successfully."
       );
 
-    for (
-      const historyDoc of
-        historySnapshot.docs
-    ) {
-      await deleteDoc(
-        historyDoc.ref
+      router.push(
+        "/admin/attendance/history"
+      );
+    } catch (error) {
+      console.error(
+        "Attendance session delete error:",
+        error
+      );
+
+      toast.error(
+        error?.message ||
+          "Failed to delete attendance session."
       );
     }
-
-    /*
-     * 3. Delete the main session.
-     */
-    await deleteDoc(
-      doc(
-        db,
-        "attendanceSessions",
-        sessionId
-      )
-    );
-
-    toast.success(
-      "Attendance session and history deleted successfully."
-    );
-
-    router.push(
-      "/admin/attendance/history"
-    );
-  } catch (error) {
-    console.error(
-      "Attendance session delete error:",
-      error
-    );
-
-    toast.error(
-      error?.message ||
-        "Failed to delete attendance session."
-    );
   }
-}
+
+  // ============================================================
+  // EXPORT EXCEL
+  // ============================================================
 
   function exportToExcel() {
     if (
@@ -354,6 +618,7 @@ async function deleteSession() {
       toast.error(
         "No attendance data available."
       );
+
       return;
     }
 
@@ -362,15 +627,34 @@ async function deleteSession() {
         (student, index) => ({
           "Sr No":
             index + 1,
+
           "Roll No":
             student.rollNo ||
             "—",
+
           Name:
             student.name ||
             "—",
+
+          Department:
+            student.department ||
+            session.department ||
+            "—",
+
+          Semester:
+            student.semester ||
+            session.semester ||
+            "—",
+
+          Division:
+            student.division ||
+            session.division ||
+            "—",
+
           Status:
             student.status ||
             "Not Marked",
+
           Method:
             student.method ||
             "Manual",
@@ -386,6 +670,9 @@ async function deleteSession() {
       { wch: 8 },
       { wch: 15 },
       { wch: 30 },
+      { wch: 28 },
+      { wch: 15 },
+      { wch: 12 },
       { wch: 15 },
       { wch: 15 },
     ];
@@ -408,13 +695,14 @@ async function deleteSession() {
         }
       );
 
-    const file = new Blob(
-      [excelBuffer],
-      {
-        type:
-          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      }
-    );
+    const file =
+      new Blob(
+        [excelBuffer],
+        {
+          type:
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        }
+      );
 
     saveAs(
       file,
@@ -426,6 +714,10 @@ async function deleteSession() {
     );
   }
 
+  // ============================================================
+  // EXPORT PDF
+  // ============================================================
+
   function exportToPDF() {
     if (
       !session ||
@@ -434,6 +726,7 @@ async function deleteSession() {
       toast.error(
         "No attendance data available."
       );
+
       return;
     }
 
@@ -465,39 +758,52 @@ async function deleteSession() {
     pdf.setFontSize(11);
 
     pdf.text(
-      `Subject: ${session.subject || "—"}`,
+      `Department: ${
+        session.department ||
+        "—"
+      }`,
       14,
       40
     );
 
     pdf.text(
-      `Semester: ${session.semester || "—"}`,
+      `Subject: ${
+        session.subject ||
+        "—"
+      }`,
       14,
       48
     );
 
     pdf.text(
-      `Division: ${session.division || "—"}`,
+      `Semester: ${
+        session.semester ||
+        "—"
+      }`,
       14,
       56
     );
 
-    if (session.department) {
-      pdf.text(
-        `Department: ${session.department}`,
-        14,
-        64
-      );
-    }
+    pdf.text(
+      `Division: ${
+        session.division ||
+        "—"
+      }`,
+      14,
+      64
+    );
 
     pdf.text(
-      `Date: ${session.date || "—"}`,
+      `Date: ${
+        session.date ||
+        "—"
+      }`,
       14,
       72
     );
 
     pdf.text(
-      `Total Students: ${students.length}`,
+      `Total Students: ${totalStudents}`,
       130,
       40
     );
@@ -520,34 +826,49 @@ async function deleteSession() {
       64
     );
 
-    autoTable(pdf, {
-      startY: 82,
+    autoTable(
+      pdf,
+      {
+        startY: 82,
 
-      head: [
-        [
-          "Sr",
-          "Roll No",
-          "Name",
-          "Status",
-          "Method",
+        head: [
+          [
+            "Sr",
+            "Roll No",
+            "Name",
+            "Department",
+            "Status",
+            "Method",
+          ],
         ],
-      ],
 
-      body:
-        students.map(
-          (student, index) => [
-            index + 1,
-            student.rollNo ||
-              "—",
-            student.name ||
-              "—",
-            student.status ||
-              "Not Marked",
-            student.method ||
-              "Manual",
-          ]
-        ),
-    });
+        body:
+          students.map(
+            (
+              student,
+              index
+            ) => [
+              index + 1,
+
+              student.rollNo ||
+                "—",
+
+              student.name ||
+                "—",
+
+              student.department ||
+                session.department ||
+                "—",
+
+              student.status ||
+                "Not Marked",
+
+              student.method ||
+                "Manual",
+            ]
+          ),
+      }
+    );
 
     pdf.save(
       `Attendance_${session.subject}_${session.semester}_${session.division}.pdf`
@@ -558,46 +879,42 @@ async function deleteSession() {
     );
   }
 
-  const present =
-    students.filter(
-      (student) =>
-        student.status ===
-        "Present"
-    ).length;
-
-  const absent =
-    students.filter(
-      (student) =>
-        student.status ===
-        "Absent"
-    ).length;
-
-  const leave =
-    students.filter(
-      (student) =>
-        student.status ===
-        "Leave"
-    ).length;
+  // ============================================================
+  // FILTERED STUDENTS
+  // ============================================================
 
   const filteredStudents =
     students.filter(
       (student) => {
-        const query =
+        const queryText =
           search
             .trim()
             .toLowerCase();
 
+        const name =
+          String(
+            student.name ||
+              ""
+          ).toLowerCase();
+
+        const rollNo =
+          String(
+            student.rollNo ||
+              ""
+          ).toLowerCase();
+
         const matchesSearch =
-          !query ||
-          student.name
-            ?.toLowerCase()
-            .includes(query) ||
-          student.rollNo
-            ?.toLowerCase()
-            .includes(query);
+          !queryText ||
+          name.includes(
+            queryText
+          ) ||
+          rollNo.includes(
+            queryText
+          );
 
         const matchesFilter =
-          filter === "All" ||
+          filter ===
+            "All" ||
           student.status ===
             filter;
 
@@ -607,6 +924,10 @@ async function deleteSession() {
         );
       }
     );
+
+  // ============================================================
+  // LOADING
+  // ============================================================
 
   if (loading) {
     return (
@@ -621,6 +942,10 @@ async function deleteSession() {
       </div>
     );
   }
+
+  // ============================================================
+  // NOT FOUND
+  // ============================================================
 
   if (notFound) {
     return (
@@ -651,7 +976,10 @@ async function deleteSession() {
             }
             className="mt-6 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white transition hover:bg-blue-700"
           >
-            <ArrowLeft size={18} />
+            <ArrowLeft
+              size={18}
+            />
+
             Back to Attendance History
           </button>
 
@@ -659,6 +987,10 @@ async function deleteSession() {
       </div>
     );
   }
+
+  // ============================================================
+  // ERROR
+  // ============================================================
 
   if (error) {
     return (
@@ -689,7 +1021,10 @@ async function deleteSession() {
             }
             className="mt-6 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white transition hover:bg-blue-700"
           >
-            <ArrowLeft size={18} />
+            <ArrowLeft
+              size={18}
+            />
+
             Back to Attendance History
           </button>
 
@@ -698,10 +1033,16 @@ async function deleteSession() {
     );
   }
 
+  // ============================================================
+  // PAGE
+  // ============================================================
+
   return (
     <div className="space-y-6">
 
-      {/* HEADER */}
+      {/* ======================================================
+          HEADER
+      ======================================================= */}
 
       <div className="rounded-3xl bg-white p-6 shadow-lg">
 
@@ -710,21 +1051,71 @@ async function deleteSession() {
         </h1>
 
         <p className="mt-2 text-gray-500">
+          {session?.department ||
+            "Department unavailable"}
+
+          {" • "}
+
           {session?.subject ||
-            "Subject unavailable"}{" "}
-          •{" "}
+            "Subject unavailable"}
+
+          {" • "}
+
           {session?.semester ||
-            "Semester unavailable"}{" "}
-          • Division{" "}
+            "Semester unavailable"}
+
+          {" • Division "}
+
           {session?.division ||
             "Division unavailable"}
         </p>
 
+        <div className="mt-4 flex flex-wrap gap-4 text-sm text-gray-600">
+
+          <span className="inline-flex items-center gap-2">
+            <Building2
+              size={16}
+            />
+
+            Faculty:
+            {" "}
+            {session?.faculty ||
+              "—"}
+          </span>
+
+          <span className="inline-flex items-center gap-2">
+            <Building2
+              size={16}
+            />
+
+            Room:
+            {" "}
+            {session?.room ||
+              "—"}
+          </span>
+
+        </div>
       </div>
 
-      {/* SUMMARY */}
+      {/* ======================================================
+          SUMMARY
+      ======================================================= */}
 
-      <div className="grid gap-6 md:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+
+        <div className="rounded-2xl bg-blue-50 p-6">
+          <Users
+            className="mb-3 text-blue-600"
+          />
+
+          <h2 className="text-3xl font-bold">
+            {totalStudents}
+          </h2>
+
+          <p>
+            Total Students
+          </p>
+        </div>
 
         <div className="rounded-2xl bg-green-50 p-6">
           <CheckCircle2
@@ -735,7 +1126,9 @@ async function deleteSession() {
             {present}
           </h2>
 
-          <p>Present</p>
+          <p>
+            Present
+          </p>
         </div>
 
         <div className="rounded-2xl bg-red-50 p-6">
@@ -747,7 +1140,9 @@ async function deleteSession() {
             {absent}
           </h2>
 
-          <p>Absent</p>
+          <p>
+            Absent
+          </p>
         </div>
 
         <div className="rounded-2xl bg-yellow-50 p-6">
@@ -759,12 +1154,16 @@ async function deleteSession() {
             {leave}
           </h2>
 
-          <p>Leave</p>
+          <p>
+            Leave
+          </p>
         </div>
 
       </div>
 
-      {/* SEARCH / FILTER */}
+      {/* ======================================================
+          SEARCH / FILTER
+      ======================================================= */}
 
       <div className="mb-6 rounded-3xl bg-white p-6 shadow-lg">
 
@@ -809,147 +1208,177 @@ async function deleteSession() {
           </select>
 
         </div>
-
       </div>
 
-      {/* STUDENT TABLE */}
+      {/* ======================================================
+          STUDENT TABLE
+      ======================================================= */}
 
       <div className="overflow-hidden rounded-3xl bg-white shadow-lg">
 
         {students.length === 0 ? (
           <div className="p-10 text-center text-gray-500">
-            No student attendance records found.
+
+            <Users
+              size={48}
+              className="mx-auto mb-4 text-gray-300"
+            />
+
+            <p className="font-medium">
+              No student roster found.
+            </p>
+
+            <p className="mt-2 text-sm">
+              New attendance sessions will create the full class roster automatically.
+            </p>
+
           </div>
-        ) : filteredStudents.length === 0 ? (
+        ) : filteredStudents.length ===
+          0 ? (
           <div className="p-10 text-center text-gray-500">
             No students match your search/filter.
           </div>
         ) : (
-          <table className="w-full">
+          <div className="overflow-x-auto">
 
-            <thead className="bg-gray-100">
+            <table className="w-full min-w-225px">
 
-              <tr>
+              <thead className="bg-gray-100">
 
-                <th className="p-4 text-left">
-                  Roll No
-                </th>
+                <tr>
 
-                <th className="p-4 text-left">
-                  Student
-                </th>
+                  <th className="p-4 text-left">
+                    Roll No
+                  </th>
 
-                <th className="p-4 text-left">
-                  Status
-                </th>
+                  <th className="p-4 text-left">
+                    Student
+                  </th>
 
-                <th className="p-4 text-left">
-                  Method
-                </th>
+                  <th className="p-4 text-left">
+                    Department
+                  </th>
 
-              </tr>
+                  <th className="p-4 text-left">
+                    Status
+                  </th>
 
-            </thead>
+                  <th className="p-4 text-left">
+                    Method
+                  </th>
 
-            <tbody>
+                </tr>
 
-              {filteredStudents.map(
-                (student) => (
+              </thead>
 
-                  <tr
-                    key={
-                      student.id
-                    }
-                    className="border-t hover:bg-gray-50"
-                  >
+              <tbody>
 
-                    <td className="p-4">
-                      {student.rollNo ||
-                        "—"}
-                    </td>
+                {filteredStudents.map(
+                  (student) => (
 
-                    <td className="p-4">
-                      {student.name ||
-                        "—"}
-                    </td>
+                    <tr
+                      key={
+                        student.id
+                      }
+                      className="border-t hover:bg-gray-50"
+                    >
 
-                    <td className="p-4">
+                      <td className="p-4">
+                        {student.rollNo ||
+                          "—"}
+                      </td>
 
-                      <div className="flex gap-2">
+                      <td className="p-4">
+                        {student.name ||
+                          "—"}
+                      </td>
 
-                        <button
-                          type="button"
-                          onClick={() =>
-                            updateStudentStatus(
-                              student.id,
+                      <td className="p-4">
+                        {student.department ||
+                          session?.department ||
+                          "—"}
+                      </td>
+
+                      <td className="p-4">
+
+                        <div className="flex flex-wrap gap-2">
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateStudentStatus(
+                                student.id,
+                                "Present"
+                              )
+                            }
+                            className={`rounded-lg px-3 py-1 text-sm text-white ${
+                              student.status ===
                               "Present"
-                            )
-                          }
-                          className={`rounded-lg px-3 py-1 text-sm text-white ${
-                            student.status ===
-                            "Present"
-                              ? "bg-green-600"
-                              : "bg-gray-400"
-                          }`}
-                        >
-                          Present
-                        </button>
+                                ? "bg-green-600"
+                                : "bg-gray-400"
+                            }`}
+                          >
+                            Present
+                          </button>
 
-                        <button
-                          type="button"
-                          onClick={() =>
-                            updateStudentStatus(
-                              student.id,
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateStudentStatus(
+                                student.id,
+                                "Absent"
+                              )
+                            }
+                            className={`rounded-lg px-3 py-1 text-sm text-white ${
+                              student.status ===
                               "Absent"
-                            )
-                          }
-                          className={`rounded-lg px-3 py-1 text-sm text-white ${
-                            student.status ===
-                            "Absent"
-                              ? "bg-red-600"
-                              : "bg-gray-400"
-                          }`}
-                        >
-                          Absent
-                        </button>
+                                ? "bg-red-600"
+                                : "bg-gray-400"
+                            }`}
+                          >
+                            Absent
+                          </button>
 
-                        <button
-                          type="button"
-                          onClick={() =>
-                            updateStudentStatus(
-                              student.id,
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateStudentStatus(
+                                student.id,
+                                "Leave"
+                              )
+                            }
+                            className={`rounded-lg px-3 py-1 text-sm text-white ${
+                              student.status ===
                               "Leave"
-                            )
-                          }
-                          className={`rounded-lg px-3 py-1 text-sm text-white ${
-                            student.status ===
-                            "Leave"
-                              ? "bg-yellow-500"
-                              : "bg-gray-400"
-                          }`}
-                        >
-                          Leave
-                        </button>
+                                ? "bg-yellow-500"
+                                : "bg-gray-400"
+                            }`}
+                          >
+                            Leave
+                          </button>
 
-                      </div>
+                        </div>
 
-                    </td>
+                      </td>
 
-                    <td className="p-4">
-                      {student.method ||
-                        "Manual"}
-                    </td>
+                      <td className="p-4">
+                        {student.method ||
+                          "Manual"}
+                      </td>
 
-                  </tr>
-                )
-              )}
+                    </tr>
+                  )
+                )}
 
-            </tbody>
+              </tbody>
 
-          </table>
+            </table>
+          </div>
         )}
 
-        {/* ACTIONS */}
+        {/* ====================================================
+            ACTIONS
+        ===================================================== */}
 
         {!notFound &&
           !error && (
@@ -996,7 +1425,8 @@ async function deleteSession() {
                 }
                 disabled={
                   saving ||
-                  students.length === 0
+                  students.length ===
+                    0
                 }
                 className="rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
