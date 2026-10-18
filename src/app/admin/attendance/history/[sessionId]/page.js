@@ -718,166 +718,168 @@ export default function AttendanceSessionDetails() {
   // EXPORT PDF
   // ============================================================
 
-  function exportToPDF() {
-    if (
-      !session ||
-      students.length === 0
-    ) {
-      toast.error(
-        "No attendance data available."
+ async function exportToPDF() {
+  if (!session || !sessionId) {
+    toast.error("Attendance session not found.");
+    return;
+  }
+
+  try {
+    // Read the latest roster directly from Firestore.
+    const rosterRef = collection(
+      db,
+      "attendanceSessions",
+      sessionId,
+      "roster"
+    );
+
+    const rosterSnapshot = await getDocs(rosterRef);
+
+    let exportStudents = rosterSnapshot.docs.map(
+      (studentDoc) => ({
+        id: studentDoc.id,
+        ...studentDoc.data(),
+      })
+    );
+
+    // Keep compatibility with sessions created before
+    // the roster collection was introduced.
+    if (rosterSnapshot.empty) {
+      const legacyRef = collection(
+        db,
+        "attendanceSessions",
+        sessionId,
+        "students"
       );
 
+      const legacySnapshot = await getDocs(legacyRef);
+
+      exportStudents = legacySnapshot.docs.map(
+        (studentDoc) => ({
+          id: studentDoc.id,
+          ...studentDoc.data(),
+        })
+      );
+    }
+
+    if (exportStudents.length === 0) {
+      toast.error("No attendance data available.");
       return;
     }
 
-    const pdf =
-      new jsPDF();
+    // Calculate every total from the same data
+    // that will appear in the PDF.
+    const total = exportStudents.length;
+
+    const presentCount = exportStudents.filter(
+      (student) => student.status === "Present"
+    ).length;
+
+    const absentCount = exportStudents.filter(
+      (student) => student.status === "Absent"
+    ).length;
+
+    const leaveCount = exportStudents.filter(
+      (student) => student.status === "Leave"
+    ).length;
+
+    const pdf = new jsPDF();
 
     pdf.setFontSize(20);
-
-    pdf.text(
-      "AUMNex",
-      105,
-      15,
-      {
-        align: "center",
-      }
-    );
+    pdf.text("AUMNex", 105, 15, {
+      align: "center",
+    });
 
     pdf.setFontSize(16);
-
-    pdf.text(
-      "Attendance Report",
-      105,
-      25,
-      {
-        align: "center",
-      }
-    );
+    pdf.text("Attendance Report", 105, 25, {
+      align: "center",
+    });
 
     pdf.setFontSize(11);
 
     pdf.text(
-      `Department: ${
-        session.department ||
-        "—"
-      }`,
+      `Department: ${session.department || "—"}`,
       14,
       40
     );
 
     pdf.text(
-      `Subject: ${
-        session.subject ||
-        "—"
-      }`,
+      `Subject: ${session.subject || "—"}`,
       14,
       48
     );
 
     pdf.text(
-      `Semester: ${
-        session.semester ||
-        "—"
-      }`,
+      `Semester: ${session.semester || "—"}`,
       14,
       56
     );
 
     pdf.text(
-      `Division: ${
-        session.division ||
-        "—"
-      }`,
+      `Division: ${session.division || "—"}`,
       14,
       64
     );
 
     pdf.text(
-      `Date: ${
-        session.date ||
-        "—"
-      }`,
+      `Date: ${session.date || "—"}`,
       14,
       72
     );
 
-    pdf.text(
-      `Total Students: ${totalStudents}`,
-      130,
-      40
-    );
+    pdf.text(`Total Students: ${total}`, 130, 40);
+    pdf.text(`Present: ${presentCount}`, 130, 48);
+    pdf.text(`Absent: ${absentCount}`, 130, 56);
+    pdf.text(`Leave: ${leaveCount}`, 130, 64);
 
-    pdf.text(
-      `Present: ${present}`,
-      130,
-      48
-    );
+    autoTable(pdf, {
+      startY: 82,
 
-    pdf.text(
-      `Absent: ${absent}`,
-      130,
-      56
-    );
+      head: [[
+        "Sr",
+        "Roll No",
+        "Name",
+        "Department",
+        "Status",
+        "Method",
+      ]],
 
-    pdf.text(
-      `Leave: ${leave}`,
-      130,
-      64
-    );
+      body: exportStudents.map((student, index) => {
+        const storedMethod = String(
+          student.method || ""
+        ).trim();
 
-    autoTable(
-      pdf,
-      {
-        startY: 82,
+        // Preserve NFC explicitly rather than letting
+        // an empty method silently become Manual.
+        const method =
+          storedMethod.toUpperCase() === "NFC"
+            ? "NFC"
+            : storedMethod || "Manual";
 
-        head: [
-          [
-            "Sr",
-            "Roll No",
-            "Name",
-            "Department",
-            "Status",
-            "Method",
-          ],
-        ],
-
-        body:
-          students.map(
-            (
-              student,
-              index
-            ) => [
-              index + 1,
-
-              student.rollNo ||
-                "—",
-
-              student.name ||
-                "—",
-
-              student.department ||
-                session.department ||
-                "—",
-
-              student.status ||
-                "Not Marked",
-
-              student.method ||
-                "Manual",
-            ]
-          ),
-      }
-    );
+        return [
+          index + 1,
+          student.rollNo || "—",
+          student.name || "—",
+          student.department || session.department || "—",
+          student.status || "Not Marked",
+          method,
+        ];
+      }),
+    });
 
     pdf.save(
       `Attendance_${session.subject}_${session.semester}_${session.division}.pdf`
     );
 
-    toast.success(
-      "PDF exported successfully!"
+    toast.success("PDF exported successfully!");
+  } catch (error) {
+    console.error("PDF export error:", error);
+
+    toast.error(
+      error?.message || "Failed to export PDF."
     );
   }
+}
 
   // ============================================================
   // FILTERED STUDENTS
