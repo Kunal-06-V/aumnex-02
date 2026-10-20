@@ -482,38 +482,38 @@ export default function NFCReaderPage() {
           academicData.semesters
         )
           ? academicData.semesters
-              .filter(
-                (item) =>
-                  item &&
-                  item.active !==
-                    false
-              )
-              .sort(
-                (a, b) =>
-                  Number(
-                    a.number || 0
-                  ) -
-                  Number(
-                    b.number || 0
-                  )
-              )
-              .map((item) => {
-                const value =
-                  textValue(
-                    item.name
-                  ) ||
-                  `Semester ${item.number}`;
+            .filter(
+              (item) =>
+                item &&
+                item.active !==
+                false
+            )
+            .sort(
+              (a, b) =>
+                Number(
+                  a.number || 0
+                ) -
+                Number(
+                  b.number || 0
+                )
+            )
+            .map((item) => {
+              const value =
+                textValue(
+                  item.name
+                ) ||
+                `Semester ${item.number}`;
 
-                return {
-                  id:
-                    item.id ||
-                    `semester${item.number}`,
-                  value,
-                  label: value,
-                  number:
-                    item.number,
-                };
-              })
+              return {
+                id:
+                  item.id ||
+                  `semester${item.number}`,
+                value,
+                label: value,
+                number:
+                  item.number,
+              };
+            })
           : [];
 
       const loadedDivisions =
@@ -521,34 +521,34 @@ export default function NFCReaderPage() {
           academicData.divisions
         )
           ? academicData.divisions
-              .filter(
-                (item) =>
-                  item &&
-                  item.active !==
-                    false
-              )
-              .map((item) => {
-                const value =
-                  textValue(
-                    item.id
-                  ) ||
-                  textValue(
-                    item.value
-                  ) ||
+            .filter(
+              (item) =>
+                item &&
+                item.active !==
+                false
+            )
+            .map((item) => {
+              const value =
+                textValue(
+                  item.id
+                ) ||
+                textValue(
+                  item.value
+                ) ||
+                textValue(
+                  item.name
+                );
+
+              return {
+                id: value,
+                value,
+                label:
                   textValue(
                     item.name
-                  );
-
-                return {
-                  id: value,
-                  value,
-                  label:
-                    textValue(
-                      item.name
-                    ) ||
-                    `Division ${value}`,
-                };
-              })
+                  ) ||
+                  `Division ${value}`,
+              };
+            })
           : [];
 
       setSemesters(
@@ -760,8 +760,8 @@ export default function NFCReaderPage() {
 
           setActiveSessionId(
             current.activeSessionId ||
-              current.sessionId ||
-              ""
+            current.sessionId ||
+            ""
           );
 
           if (
@@ -1149,28 +1149,28 @@ export default function NFCReaderPage() {
 
             return (
               student.status ===
-                "Active" &&
+              "Active" &&
               (
                 !student.role ||
                 student.role ===
-                  "student"
+                "student"
               ) &&
               studentDepartment ===
-                normalizedDepartment &&
+              normalizedDepartment &&
               studentSemester ===
-                normalizedSemester &&
+              normalizedSemester &&
               studentDivision ===
-                normalizedDivision
+              normalizedDivision
             );
           })
           .sort((a, b) =>
             String(
               a.rollNo ||
-                ""
+              ""
             ).localeCompare(
               String(
                 b.rollNo ||
-                  ""
+                ""
               ),
               undefined,
               {
@@ -1269,6 +1269,15 @@ export default function NFCReaderPage() {
           startTime:
             now,
 
+          startedAt:
+            now,
+
+          endedAt:
+            null,
+
+          durationSeconds:
+            null,
+
           updatedAt:
             now,
         }
@@ -1321,6 +1330,15 @@ export default function NFCReaderPage() {
           startTime:
             now,
 
+          startedAt:
+            now,
+
+          endedAt:
+            null,
+
+          durationSeconds:
+            null,
+
           updatedAt:
             now,
         }
@@ -1332,7 +1350,7 @@ export default function NFCReaderPage() {
 
       for (
         const student of
-          classStudents
+        classStudents
       ) {
         const rosterData = {
           studentId:
@@ -1382,28 +1400,28 @@ export default function NFCReaderPage() {
         };
 
         const currentRosterCollection =
-  collection(
-    currentRef,
-    "roster"
-  );
+          collection(
+            currentRef,
+            "roster"
+          );
 
-const historicalRosterCollection =
-  collection(
-    historicalRef,
-    "roster"
-  );
+        const historicalRosterCollection =
+          collection(
+            historicalRef,
+            "roster"
+          );
 
-const currentRosterRef =
-  doc(
-    currentRosterCollection,
-    student.documentId
-  );
+        const currentRosterRef =
+          doc(
+            currentRosterCollection,
+            student.documentId
+          );
 
-const historicalRosterRef =
-  doc(
-    historicalRosterCollection,
-    student.documentId
-  );
+        const historicalRosterRef =
+          doc(
+            historicalRosterCollection,
+            student.documentId
+          );
 
         batch.set(
           currentRosterRef,
@@ -1550,12 +1568,47 @@ const historicalRosterRef =
           roster
         );
 
-      const now =
-        new Date();
+
 
       const batch =
         writeBatch(db);
 
+      const now = new Date();
+
+// Support new sessions and older sessions that only have startTime.
+const rawStartedAt =
+  current.startedAt ??
+  current.startTime ??
+  current.createdAt;
+
+const startedAtDate =
+  rawStartedAt &&
+  typeof rawStartedAt.toDate === "function"
+    ? rawStartedAt.toDate()
+    : rawStartedAt instanceof Date
+      ? rawStartedAt
+      : rawStartedAt
+        ? new Date(rawStartedAt)
+        : null;
+
+const validStartedAt =
+  startedAtDate &&
+  !Number.isNaN(startedAtDate.getTime())
+    ? startedAtDate
+    : null;
+
+const durationSeconds =
+  validStartedAt
+    ? Math.max(
+        0,
+        Math.floor(
+          (now.getTime() - validStartedAt.getTime()) /
+            1000
+        )
+      )
+    : null;
+
+const startedAt = validStartedAt;
       // -------------------------------------------------------
       // CLOSE HISTORICAL SESSION
       // -------------------------------------------------------
@@ -1568,6 +1621,10 @@ const historicalRosterRef =
 
           endTime:
             now,
+          startedAt,
+endedAt:
+  now,
+durationSeconds,
 
           totalStudents:
             finalStats.totalStudents,
@@ -1602,8 +1659,15 @@ const historicalRosterRef =
           activeSessionId:
             null,
 
-          endTime:
+                   endTime:
             now,
+
+          startedAt,
+
+          endedAt:
+            now,
+
+          durationSeconds,
 
           totalStudents:
             finalStats.totalStudents,
@@ -1708,11 +1772,10 @@ const historicalRosterRef =
 
             <div className="flex items-center gap-2">
               <div
-                className={`w-3 h-3 rounded-full ${
-                  running
+                className={`w-3 h-3 rounded-full ${running
                     ? "bg-green-500 animate-pulse"
                     : "bg-gray-400"
-                }`}
+                  }`}
               />
 
               <span className="font-medium">
@@ -2197,11 +2260,10 @@ const historicalRosterRef =
 
               <Smartphone
                 size={70}
-                className={`text-blue-600 ${
-                  running
+                className={`text-blue-600 ${running
                     ? "animate-pulse"
                     : ""
-                }`}
+                  }`}
               />
 
             </div>
