@@ -5,6 +5,7 @@ import {
 import {
   adminDb,
 } from "./firebaseAdmin";
+import { performance } from "node:perf_hooks";
 
 function normalizeNfcUid(value) {
   return String(value || "")
@@ -47,12 +48,21 @@ export async function markNfcAttendance(rawNfcUid) {
   // 2. FIND STUDENT
   // ==========================================================
 
-  const studentSnapshot = await adminDb
-    .collection("students")
-    .where("nfcUid", "==", nfcUid)
-    .limit(2)
-    .get();
+ const studentLookupStart = performance.now();
 
+const studentSnapshot = await adminDb
+  .collection("students")
+  .where("nfcUid", "==", nfcUid)
+  .limit(2)
+  .get();
+
+console.info("[NFC_TIMING]", {
+  phase: "student_lookup",
+  durationMs: Number(
+    (performance.now() - studentLookupStart).toFixed(1)
+  ),
+  outcome: "success",
+});
   if (studentSnapshot.empty) {
     const error = new Error(
       "No student found for this NFC tag."
@@ -132,7 +142,7 @@ export async function markNfcAttendance(rawNfcUid) {
   // ==========================================================
   // 8. TRANSACTION
   // ==========================================================
-
+const transactionStart = performance.now();
   const result = await adminDb.runTransaction(
     async (transaction) => {
       // ------------------------------------------------------
@@ -664,6 +674,12 @@ export async function markNfcAttendance(rawNfcUid) {
       };
     }
   );
-
+console.info("[NFC_TIMING]", {
+  phase: "attendance_transaction",
+  durationMs: Number(
+    (performance.now() - transactionStart).toFixed(1)
+  ),
+  outcome: "success",
+});
   return result;
 }
