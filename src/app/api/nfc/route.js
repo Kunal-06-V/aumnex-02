@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { performance } from "node:perf_hooks";
 
 import {
   adminAuth,
@@ -8,6 +9,18 @@ import {
 import {
   markNfcAttendance,
 } from "@/lib/nfcAttendanceService";
+
+export const runtime = "nodejs";
+
+function logNfcTiming(phase, startTime, outcome = "success") {
+  console.info("[NFC_TIMING]", {
+    phase,
+    durationMs: Number(
+      (performance.now() - startTime).toFixed(1)
+    ),
+    outcome,
+  });
+}
 
 function normalizeNfcUid(value) {
   return String(value || "")
@@ -25,205 +38,210 @@ function isValidNfcUid(uid) {
 }
 
 async function authenticateNfcReader(request) {
+  const authStart = performance.now();
+
   const authorization =
-    request.headers.get(
-      "authorization"
-    );
+    request.headers.get("authorization");
 
   if (
     !authorization ||
-    !authorization.startsWith(
-      "Bearer "
-    )
+    !authorization.startsWith("Bearer ")
   ) {
-    const error =
-      new Error(
-        "NFC reader authentication is required."
-      );
+    const error = new Error(
+      "NFC reader authentication is required."
+    );
 
-    error.code =
-      "READER_AUTH_REQUIRED";
-
+    error.code = "READER_AUTH_REQUIRED";
     throw error;
   }
 
-  const idToken =
-    authorization
-      .substring(7)
-      .trim();
+  const idToken = authorization
+    .substring(7)
+    .trim();
 
   if (!idToken) {
-    const error =
-      new Error(
-        "NFC reader authentication token is missing."
-      );
+    const error = new Error(
+      "NFC reader authentication token is missing."
+    );
 
-    error.code =
-      "READER_AUTH_REQUIRED";
-
+    error.code = "READER_AUTH_REQUIRED";
     throw error;
   }
 
   let decodedToken;
+  const tokenStart = performance.now();
 
   try {
-    decodedToken =
-      await adminAuth.verifyIdToken(
-        idToken
-      );
+    decodedToken = await adminAuth.verifyIdToken(idToken);
+
+    logNfcTiming(
+      "token_verification",
+      tokenStart
+    );
   } catch (verifyError) {
+    logNfcTiming(
+      "token_verification",
+      tokenStart,
+      "failed"
+    );
+
     console.error(
       "NFC reader token verification failed:",
       verifyError
     );
 
-    const error =
-      new Error(
-        "Invalid or expired NFC reader authentication token."
-      );
+    const error = new Error(
+      "Invalid or expired NFC reader authentication token."
+    );
 
-    error.code =
-      "READER_AUTH_INVALID";
-
+    error.code = "READER_AUTH_INVALID";
     throw error;
   }
 
-  const readerRef =
-    adminDb
-      .collection("nfcReaders")
-      .doc(decodedToken.uid);
+  const readerRef = adminDb
+    .collection("nfcReaders")
+    .doc(decodedToken.uid);
 
-  const readerSnap =
-    await readerRef.get();
+  const readerLookupStart = performance.now();
+  let readerSnap;
+
+  try {
+    readerSnap = await readerRef.get();
+
+    logNfcTiming(
+      "reader_document_lookup",
+      readerLookupStart,
+      readerSnap.exists ? "success" : "not_found"
+    );
+  } catch (lookupError) {
+    logNfcTiming(
+      "reader_document_lookup",
+      readerLookupStart,
+      "failed"
+    );
+
+    throw lookupError;
+  }
 
   if (!readerSnap.exists) {
-    const error =
-      new Error(
-        "This device is not registered as an NFC reader."
-      );
+    const error = new Error(
+      "This device is not registered as an NFC reader."
+    );
 
-    error.code =
-      "READER_NOT_REGISTERED";
-
+    error.code = "READER_NOT_REGISTERED";
     throw error;
   }
 
-  const reader =
-    readerSnap.data();
+  const reader = readerSnap.data();
 
-  if (
-    reader.role !==
-    "nfc-reader"
-  ) {
-    const error =
-      new Error(
-        "This account is not authorized as an NFC reader."
-      );
+  if (reader.role !== "nfc-reader") {
+    const error = new Error(
+      "This account is not authorized as an NFC reader."
+    );
 
-    error.code =
-      "READER_NOT_AUTHORIZED";
-
+    error.code = "READER_NOT_AUTHORIZED";
     throw error;
   }
 
-  if (
-    reader.status !==
-    "Active"
-  ) {
-    const error =
-      new Error(
-        "This NFC reader is inactive."
-      );
+  if (reader.status !== "Active") {
+    const error = new Error(
+      "This NFC reader is inactive."
+    );
 
-    error.code =
-      "READER_INACTIVE";
-
+    error.code = "READER_INACTIVE";
     throw error;
   }
+
+  logNfcTiming("reader_authentication_total", authStart);
 
   return decodedToken;
 }
 
-export async function POST(
-  request
-) {
+export async function POST(request) {
+  const requestStart = performance.now();
+  let currentPhase = "authenticate_reader";
+
   try {
-    // ----------------------------------------------------------
-    // 1. Authenticate the physical NFC reader
-    // ----------------------------------------------------------
+    // 1. Authenticate the physical NFC reader.
+    await authenticateNfcReader(request);
 
-    await authenticateNfcReader(
-      request
-    );
+    // 2. Read and validate the request body.
+    currentPhase = "parse_request_body";
 
-    // ----------------------------------------------------------
-    // 2. Read request body
-    // ----------------------------------------------------------
+    const bodyStart = performance.now();
+    const body = await request.json();
 
-    const body =
-      await request.json();
+    const nfcUid = normalizeNfcUid(body?.nfcUid);
 
-    const nfcUid =
-      normalizeNfcUid(
-        body?.nfcUid
-      );
+    logNfcTiming("request_body_parsing", bodyStart);
 
     if (!nfcUid) {
+      logNfcTiming(
+        "request_total",
+        requestStart,
+        "invalid_uid"
+      );
+
       return NextResponse.json(
         {
           success: false,
-          message:
-            "NFC UID is required.",
+          message: "NFC UID is required.",
         },
-        {
-          status: 400,
-        }
+        { status: 400 }
       );
     }
 
-    if (
-      !isValidNfcUid(
-        nfcUid
-      )
-    ) {
+    if (!isValidNfcUid(nfcUid)) {
+      logNfcTiming(
+        "request_total",
+        requestStart,
+        "invalid_uid"
+      );
+
       return NextResponse.json(
         {
           success: false,
-          message:
-            "Invalid NFC UID format.",
+          message: "Invalid NFC UID format.",
         },
-        {
-          status: 400,
-        }
+        { status: 400 }
       );
     }
 
-    // ----------------------------------------------------------
-    // 3. Mark attendance
-    // ----------------------------------------------------------
+    // 3. Mark attendance.
+    currentPhase = "mark_attendance";
 
-    const result =
-      await markNfcAttendance(
-        nfcUid
+    const serviceStart = performance.now();
+    let result;
+    let serviceOutcome = "success";
+
+    try {
+      result = await markNfcAttendance(nfcUid);
+    } catch (serviceError) {
+      serviceOutcome = "failed";
+      throw serviceError;
+    } finally {
+      logNfcTiming(
+        "attendance_service",
+        serviceStart,
+        serviceOutcome
       );
+    }
 
-    return NextResponse.json(
-      result,
-      {
-        status: 200,
-      }
-    );
+    logNfcTiming("request_total", requestStart);
+
+    return NextResponse.json(result, { status: 200 });
   } catch (error) {
-    console.error(
-      "NFC attendance API error:",
-      error
+    logNfcTiming(
+      `request_total:${currentPhase}`,
+      requestStart,
+      "failed"
     );
+
+    console.error("NFC attendance API error:", error);
 
     let status = 500;
 
-    switch (
-      error.code
-    ) {
+    switch (error.code) {
       case "READER_AUTH_REQUIRED":
       case "READER_AUTH_INVALID":
         status = 401;
@@ -240,6 +258,7 @@ export async function POST(
         break;
 
       case "STUDENT_NOT_FOUND":
+      case "SESSION_NOT_FOUND":
         status = 404;
         break;
 
@@ -250,10 +269,6 @@ export async function POST(
       case "NFC_UID_DUPLICATE":
       case "ALREADY_MARKED":
         status = 409;
-        break;
-
-      case "SESSION_NOT_FOUND":
-        status = 404;
         break;
 
       case "SESSION_NOT_ACTIVE":
@@ -274,9 +289,7 @@ export async function POST(
           error?.message ||
           "NFC attendance failed.",
       },
-      {
-        status,
-      }
+      { status }
     );
   }
 }
