@@ -1277,13 +1277,13 @@ const displayedSessionDurationSeconds =
             className="mb-3 text-blue-600"
           />
 
-          <h2 className="text-3xl font-bold">
+          <h2 className="text-3xl font-bold text-gray-900">
             {totalStudents}
           </h2>
 
-          <p>
-            Total Students
-          </p>
+          <p className="mt-1 text-sm font-medium text-gray-700">
+  Total Students
+</p>
         </div>
 
         <div className="rounded-2xl bg-green-50 p-6">
@@ -1291,11 +1291,11 @@ const displayedSessionDurationSeconds =
             className="mb-3 text-green-600"
           />
 
-          <h2 className="text-3xl font-bold">
-            {present}
-          </h2>
+          <h2 className="text-3xl font-bold text-green-900">
+  {present}
+</h2>
 
-          <p>
+          <p className="mt-1 text-sm font-medium text-gray-700">
             Present
           </p>
         </div>
@@ -1305,13 +1305,13 @@ const displayedSessionDurationSeconds =
             className="mb-3 text-red-600"
           />
 
-          <h2 className="text-3xl font-bold">
+          <h2 className="text-3xl font-bold text-red-900">
             {absent}
           </h2>
 
-          <p>
-            Absent
-          </p>
+         <p className="mt-1 text-sm font-medium text-gray-700">
+  Absent
+</p>
         </div>
 
         <div className="rounded-2xl bg-yellow-50 p-6">
@@ -1319,13 +1319,13 @@ const displayedSessionDurationSeconds =
             className="mb-3 text-yellow-600"
           />
 
-          <h2 className="text-3xl font-bold">
+          <h2 className="text-3xl font-bold text-yellow-900">
             {leave}
           </h2>
 
-          <p>
-            Leave
-          </p>
+          <p className="mt-1 text-sm font-medium text-gray-700">
+  Leave
+</p>
         </div>
 
       </div>
