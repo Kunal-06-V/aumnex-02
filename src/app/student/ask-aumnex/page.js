@@ -492,7 +492,7 @@ export default function AskAumnexPage() {
 
       {/* Quick Questions */}
       <div className="bg-white rounded-3xl shadow-md p-6">
-        <h2 className="text-xl font-bold text-slate-800 mb-4">
+        <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-4">
           Try asking
         </h2>
 
@@ -523,7 +523,7 @@ export default function AskAumnexPage() {
 
         <label
           htmlFor="ask-aumnex-question"
-          className="block font-semibold text-slate-800 mb-3"
+          className="block font-semibold text-slate-800 dark:text-slate-100 mb-3"
         >
           Your Question
         </label>
@@ -606,7 +606,7 @@ export default function AskAumnexPage() {
           </div>
 
           <div className="bg-blue-50 rounded-2xl p-5">
-            <p className="text-gray-800 leading-relaxed whitespace-pre-wrap">
+            <p className="text-slate-800 leading-relaxed whitespace-pre-wrap">
               {answer.answer}
             </p>
           </div>
@@ -614,7 +614,7 @@ export default function AskAumnexPage() {
           {answer.dataUsed?.length > 0 && (
             <div className="mt-5">
 
-              <p className="font-semibold text-slate-800 mb-2">
+              <p className="font-semibold text-slate-800 dark:text-slate-100 mb-2">
                 Data used
               </p>
 

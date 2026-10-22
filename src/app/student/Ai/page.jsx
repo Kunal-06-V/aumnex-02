@@ -83,7 +83,7 @@ export default function StudentAIPage() {
 
       for (
         const sessionDoc of
-          sessionsSnapshot.docs
+        sessionsSnapshot.docs
       ) {
         if (sessionDoc.id === "current") {
           continue;
@@ -208,10 +208,10 @@ export default function StudentAIPage() {
         attendance.total === 0
           ? null
           : Math.round(
-              (attendance.present /
-                attendance.total) *
-                100
-            );
+            (attendance.present /
+              attendance.total) *
+            100
+          );
 
       const subjectList = Object.entries(
         attendance.subjects
@@ -221,10 +221,10 @@ export default function StudentAIPage() {
             data.total === 0
               ? 0
               : Math.round(
-                  (data.present /
-                    data.total) *
-                    100
-                );
+                (data.present /
+                  data.total) *
+                100
+              );
 
           return {
             subject,
@@ -389,14 +389,23 @@ export default function StudentAIPage() {
       const result =
         await response.json();
 
-      if (
-        !response.ok ||
-        !result.success
-      ) {
-        throw new Error(
-          result.message ||
-            "AI analysis failed."
+      if (!response.ok || !result.success) {
+        const providerMessage =
+          result.message || "";
+
+        const isTemporaryFailure =
+          response.status === 503 ||
+          /high demand|temporarily unavailable|UNAVAILABLE/i.test(
+            providerMessage
+          );
+
+        setError(
+          isTemporaryFailure
+            ? "AUMNex AI is temporarily busy. Please try again in a minute."
+            : providerMessage || "AI analysis failed. Please try again."
         );
+
+        return;
       }
 
       setInsight(result.data);
@@ -408,7 +417,7 @@ export default function StudentAIPage() {
 
       setError(
         error.message ||
-          "AI analysis failed."
+        "AI analysis failed."
       );
     } finally {
       setAnalyzing(false);
@@ -433,7 +442,7 @@ export default function StudentAIPage() {
   if (!profile) {
     return (
       <div className="bg-white rounded-3xl shadow-md p-8">
-        <h1 className="text-2xl font-bold text-slate-800">
+        <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">
           Intelligence Unavailable
         </h1>
 
@@ -475,8 +484,20 @@ export default function StudentAIPage() {
       {/* Error */}
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-4">
-          {error}
+        <div
+          role="alert"
+          className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200"
+        >
+          <p className="font-medium">AI analysis unavailable</p>
+          <p className="mt-1 text-sm">{error}</p>
+          <button
+            type="button"
+            onClick={analyzeMyPerformance}
+            disabled={analyzing}
+            className="mt-3 rounded-lg bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {analyzing ? "Trying again..." : "Try again"}
+          </button>
         </div>
       )}
 
@@ -489,7 +510,7 @@ export default function StudentAIPage() {
               Academic Health
             </p>
 
-            <h2 className="text-2xl font-bold text-slate-800 mt-1">
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mt-1">
               {student?.name ||
                 "Student"}
             </h2>
@@ -511,12 +532,12 @@ export default function StudentAIPage() {
 
       {/* Main Stats */}
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
         <StatCard
           title="Attendance"
           value={
             profile.attendancePercentage ===
-            null
+              null
               ? "N/A"
               : `${profile.attendancePercentage}%`
           }
@@ -545,7 +566,7 @@ export default function StudentAIPage() {
           title="Academic Score"
           value={
             profile.academicScore ===
-            null
+              null
               ? "N/A"
               : `${profile.academicScore}%`
           }
@@ -560,7 +581,7 @@ export default function StudentAIPage() {
       <div className="bg-white rounded-3xl shadow-md border border-gray-100 p-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-bold text-slate-800">
+            <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">
               Attendance Goal
             </h2>
 
@@ -571,7 +592,7 @@ export default function StudentAIPage() {
 
           <span className="font-bold text-blue-600">
             {profile.attendancePercentage ===
-            null
+              null
               ? "N/A"
               : `${profile.attendancePercentage}%`}
           </span>
@@ -583,7 +604,7 @@ export default function StudentAIPage() {
             style={{
               width: `${Math.min(
                 profile.attendancePercentage ||
-                  0,
+                0,
                 100
               )}%`,
             }}
@@ -599,7 +620,7 @@ export default function StudentAIPage() {
         {profile.attendancePercentage !==
           null &&
           profile.attendancePercentage <
-            75 && (
+          75 && (
             <div className="mt-5 bg-yellow-50 border border-yellow-200 rounded-2xl p-4">
               <p className="font-semibold text-yellow-800">
                 Attendance needs attention
@@ -623,7 +644,7 @@ export default function StudentAIPage() {
           />
 
           <div>
-            <h2 className="text-xl font-bold text-slate-800">
+            <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">
               Subject Performance
             </h2>
 
@@ -634,7 +655,7 @@ export default function StudentAIPage() {
         </div>
 
         {profile.subjects.length ===
-        0 ? (
+          0 ? (
           <div className="text-center py-10 text-gray-500">
             No subject attendance data available.
           </div>
@@ -648,7 +669,7 @@ export default function StudentAIPage() {
                 >
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <h3 className="font-semibold text-slate-800">
+                      <h3 className="font-semibold text-slate-800 dark:text-slate-100">
                         {subject.subject}
                       </h3>
 
@@ -659,12 +680,11 @@ export default function StudentAIPage() {
                     </div>
 
                     <span
-                      className={`font-bold ${
-                        subject.percentage <
+                      className={`font-bold ${subject.percentage <
                         75
-                          ? "text-red-600"
-                          : "text-green-600"
-                      }`}
+                        ? "text-red-600"
+                        : "text-green-600"
+                        }`}
                     >
                       {subject.percentage}%
                     </span>
@@ -696,7 +716,7 @@ export default function StudentAIPage() {
                 className="text-blue-600"
               />
 
-              <h2 className="text-xl font-bold text-slate-800">
+              <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">
                 AUMNex AI Insight
               </h2>
             </div>
@@ -738,7 +758,7 @@ export default function StudentAIPage() {
               className="mx-auto text-gray-400"
             />
 
-            <p className="font-medium text-slate-700 mt-3">
+            <p className="font-medium text-slate-700 dark:text-slate-200 mt-3">
               Your AI insight will appear here.
             </p>
 
@@ -753,7 +773,7 @@ export default function StudentAIPage() {
           <div className="mt-6 space-y-6">
             <div className="bg-blue-50 rounded-2xl p-5">
               <div className="flex items-center justify-between gap-4">
-                <h3 className="font-semibold text-slate-800">
+                <h3 className="font-semibold text-slate-800 dark:text-slate-100">
                   AI Summary
                 </h3>
 
@@ -762,14 +782,14 @@ export default function StudentAIPage() {
                 />
               </div>
 
-              <p className="text-gray-700 mt-3 leading-relaxed">
+              <p className="mt-3 text-sm sm:text-base font-medium leading-6 text-slate-800">
                 {insight.summary}
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <h3 className="font-semibold text-slate-800 mb-3">
+                <h3 className="font-semibold text-slate-800 dark:text-slate-100 mb-3">
                   Key Concerns
                 </h3>
 
@@ -788,7 +808,7 @@ export default function StudentAIPage() {
                           className="text-red-600 mt-0.5 shrink-0"
                         />
 
-                        <span className="text-sm text-gray-700">
+                        <span className="text-sm text-slate-700">
                           {item}
                         </span>
                       </div>
@@ -798,7 +818,7 @@ export default function StudentAIPage() {
               </div>
 
               <div>
-                <h3 className="font-semibold text-slate-800 mb-3">
+                <h3 className="font-semibold text-slate-800 dark:text-slate-100 mb-3">
                   Recommendations
                 </h3>
 
@@ -817,7 +837,7 @@ export default function StudentAIPage() {
                           className="text-green-600 mt-0.5 shrink-0"
                         />
 
-                        <span className="text-sm text-gray-700">
+                        <span className="text-sm leading-5 text-slate-800">
                           {item}
                         </span>
                       </div>
@@ -873,7 +893,7 @@ function StatCard({
             {title}
           </p>
 
-          <h2 className="text-3xl font-bold text-slate-800 mt-2">
+          <h2 className="text-3xl font-bold text-slate-800 dark:text-slate-100 mt-2">
             {value}
           </h2>
         </div>
@@ -901,10 +921,9 @@ function RiskBadge({ risk }) {
 
   return (
     <span
-      className={`inline-flex px-3 py-1 rounded-full text-sm font-semibold ${
-        styles[risk] ||
+      className={`inline-flex px-3 py-1 rounded-full text-sm font-semibold ${styles[risk] ||
         "bg-gray-100 text-gray-700"
-      }`}
+        }`}
     >
       {risk}
     </span>

@@ -117,8 +117,8 @@ export default function StudentFees() {
           const percentagePaid =
             total > 0
               ? Math.round(
-                  (paid / total) * 100
-                )
+                (paid / total) * 100
+              )
               : 0;
 
           if (active) {
@@ -253,11 +253,11 @@ export default function StudentFees() {
 
         <div>
 
-          <h1 className="text-4xl font-bold text-slate-800">
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 sm:text-4xl">
             Student Fees
           </h1>
 
-          <p className="text-gray-500 mt-2">
+          <p className="mt-2 text-gray-600 dark:text-gray-400">
             Track your fee payments and payment history
           </p>
 
@@ -424,7 +424,7 @@ export default function StudentFees() {
         <div className="w-full h-4 bg-gray-200 rounded-full overflow-hidden">
 
           <div
-           className="h-full bg-linear-to-r from-blue-500 to-green-500 rounded-full transition-all duration-700"
+            className="h-full bg-linear-to-r from-blue-500 to-green-500 rounded-full transition-all duration-700"
             style={{
               width: `${feeData.percentagePaid}%`,
             }}
@@ -441,15 +441,14 @@ export default function StudentFees() {
           </span>
 
           <span
-            className={`px-4 py-2 rounded-full text-sm font-semibold ${
-              feeData.status ===
-              "Paid"
+            className={`px-4 py-2 rounded-full text-sm font-semibold ${feeData.status ===
+                "Paid"
                 ? "bg-green-100 text-green-700"
                 : feeData.status ===
                   "Partial"
-                ? "bg-yellow-100 text-yellow-700"
-                : "bg-red-100 text-red-700"
-            }`}
+                  ? "bg-yellow-100 text-yellow-700"
+                  : "bg-red-100 text-red-700"
+              }`}
           >
             {feeData.status}
           </span>

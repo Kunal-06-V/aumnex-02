@@ -19,11 +19,11 @@ export default function PageHeader({
         Back
       </button>
 
-      <h1 className="text-4xl font-bold text-slate-800">
+     <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100">
         {title}
       </h1>
 
-      <p className="text-gray-500 mt-2">
+     <p className="mt-2 text-gray-600 dark:text-gray-400">
         {subtitle}
       </p>
     </div>
