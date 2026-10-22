@@ -15,11 +15,13 @@ import {
 } from "firebase/firestore";
 
 import { auth, db } from "@/lib/firebase";
+import { Menu } from "lucide-react";
 
 export default function AdminLayout({
   children,
 }) {
   const router = useRouter();
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const [loading, setLoading] =
     useState(true);
@@ -101,7 +103,7 @@ export default function AdminLayout({
 
             const isAuthorized =
               adminData.uid ===
-                currentUser.uid &&
+              currentUser.uid &&
               status === "Active" &&
               (
                 role === "Admin" ||
@@ -178,9 +180,30 @@ export default function AdminLayout({
   return (
     <div className="min-h-screen bg-slate-100">
 
-      <AdminSidebar />
+     {mobileSidebarOpen && (
+  <button
+    type="button"
+    aria-label="Close navigation menu"
+    onClick={() => setMobileSidebarOpen(false)}
+    className="fixed inset-0 z-40 bg-black/50 md:hidden"
+  />
+)}
 
-      <main className="ml-64 p-6">
+<AdminSidebar
+  mobileOpen={mobileSidebarOpen}
+  onNavigate={() => setMobileSidebarOpen(false)}
+/>
+
+      <main className="ml-0 min-w-0 p-3 md:ml-64 md:p-6">
+
+        <button
+          type="button"
+          onClick={() => setMobileSidebarOpen(true)}
+          className="mb-3 flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-white md:hidden"
+        >
+          <Menu size={20} />
+          <span>Menu</span>
+        </button>
 
         <Topbar
           student={admin}

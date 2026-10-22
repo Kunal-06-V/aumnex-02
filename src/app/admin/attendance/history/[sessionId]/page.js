@@ -1422,7 +1422,7 @@ export default function AttendanceSessionDetails() {
         ) : (
           <div className="overflow-x-auto">
 
-            <table className="w-full min-w-225px">
+            <table className="w-full min-w-150">
 
               <thead className="bg-gray-100">
 

@@ -100,11 +100,19 @@ const menuItems = [
   },
 ];
 
-export default function AdminSidebar() {
+export default function AdminSidebar({
+  mobileOpen = false,
+  onNavigate = () => { },
+}) {
   const pathname = usePathname();
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-64 bg-slate-900 text-white shadow-xl">
+    <aside
+      className={`fixed left-0 top-0 z-50 h-screen w-64 bg-slate-900 text-white shadow-xl transition-transform duration-200 ${mobileOpen
+          ? "translate-x-0"
+          : "-translate-x-full md:translate-x-0"
+        }`}
+    >
 
       {/* BRAND */}
 
@@ -137,11 +145,11 @@ export default function AdminSidebar() {
             <Link
               key={item.title}
               href={item.href}
-              className={`flex items-center gap-3 rounded-xl px-4 py-3 transition ${
-                active
+              onClick={onNavigate}
+              className={`flex items-center gap-3 rounded-xl px-4 py-3 transition ${active
                   ? "bg-blue-600 text-white"
                   : "text-gray-300 hover:bg-slate-800 hover:text-white"
-              }`}
+                }`}
             >
 
               <Icon size={20} />
