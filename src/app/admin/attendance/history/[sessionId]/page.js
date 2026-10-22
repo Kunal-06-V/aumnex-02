@@ -268,17 +268,17 @@ export default function AttendanceSessionDetails() {
       unsubscribeRoster();
     };
   }, [sessionId]);
- useEffect(() => {
-  if (session?.status !== "active") {
-    return;
-  }
+  useEffect(() => {
+    if (session?.status !== "active") {
+      return;
+    }
 
-  const timerId = setInterval(() => {
-    setCurrentTime(Date.now());
-  }, 1000);
+    const timerId = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000);
 
-  return () => clearInterval(timerId);
-}, [session?.status]);
+    return () => clearInterval(timerId);
+  }, [session?.status]);
   // ============================================================
   // UPDATE LOCAL STATUS
   // ============================================================
@@ -1108,20 +1108,20 @@ export default function AttendanceSessionDetails() {
           )
         )
         : null;
-const liveSessionDurationSeconds =
-  session?.status === "active" && sessionStartedAt
-    ? Math.max(
+  const liveSessionDurationSeconds =
+    session?.status === "active" && sessionStartedAt
+      ? Math.max(
         0,
         Math.floor(
           (currentTime - sessionStartedAt.getTime()) / 1000
         )
       )
-    : null;
+      : null;
 
-const displayedSessionDurationSeconds =
-  sessionDurationSeconds !== null
-    ? sessionDurationSeconds
-    : liveSessionDurationSeconds;
+  const displayedSessionDurationSeconds =
+    sessionDurationSeconds !== null
+      ? sessionDurationSeconds
+      : liveSessionDurationSeconds;
   function formatSessionDuration(seconds) {
     const totalSeconds = Math.max(
       0,
@@ -1256,12 +1256,12 @@ const displayedSessionDurationSeconds =
 
             <p className="mt-1 font-semibold text-gray-900">
               {displayedSessionDurationSeconds !== null
-  ? formatSessionDuration(
-      displayedSessionDurationSeconds
-    )
-  : session?.status === "active"
-    ? "Waiting for start time"
-    : "Not recorded"}
+                ? formatSessionDuration(
+                  displayedSessionDurationSeconds
+                )
+                : session?.status === "active"
+                  ? "Waiting for start time"
+                  : "Not recorded"}
             </p>
           </div>
         </div>
@@ -1281,9 +1281,12 @@ const displayedSessionDurationSeconds =
             {totalStudents}
           </h2>
 
-          <p className="mt-1 text-sm font-medium text-gray-700">
-  Total Students
-</p>
+          <p
+            className="mt-1 text-sm font-medium"
+            style={{ color: "#1e40af" }}
+          >
+            Total Students
+          </p>
         </div>
 
         <div className="rounded-2xl bg-green-50 p-6">
@@ -1292,10 +1295,13 @@ const displayedSessionDurationSeconds =
           />
 
           <h2 className="text-3xl font-bold text-green-900">
-  {present}
-</h2>
+            {present}
+          </h2>
 
-          <p className="mt-1 text-sm font-medium text-gray-700">
+          <p
+            className="mt-1 text-sm font-medium"
+            style={{ color: "#166534" }}
+          >
             Present
           </p>
         </div>
@@ -1309,9 +1315,12 @@ const displayedSessionDurationSeconds =
             {absent}
           </h2>
 
-         <p className="mt-1 text-sm font-medium text-gray-700">
-  Absent
-</p>
+          <p
+            className="mt-1 text-sm font-medium"
+            style={{ color: "#991b1b" }}
+          >
+            Absent
+          </p>
         </div>
 
         <div className="rounded-2xl bg-yellow-50 p-6">
@@ -1323,9 +1332,12 @@ const displayedSessionDurationSeconds =
             {leave}
           </h2>
 
-          <p className="mt-1 text-sm font-medium text-gray-700">
-  Leave
-</p>
+          <p
+            className="mt-1 text-sm font-medium"
+            style={{ color: "#854d0e" }}
+          >
+            Leave
+          </p>
         </div>
 
       </div>
@@ -1481,9 +1493,9 @@ const displayedSessionDurationSeconds =
                               )
                             }
                             className={`rounded-lg px-3 py-1 text-sm text-white ${student.status ===
-                                "Present"
-                                ? "bg-green-600"
-                                : "bg-gray-400"
+                              "Present"
+                              ? "bg-green-600"
+                              : "bg-gray-400"
                               }`}
                           >
                             Present
@@ -1498,9 +1510,9 @@ const displayedSessionDurationSeconds =
                               )
                             }
                             className={`rounded-lg px-3 py-1 text-sm text-white ${student.status ===
-                                "Absent"
-                                ? "bg-red-600"
-                                : "bg-gray-400"
+                              "Absent"
+                              ? "bg-red-600"
+                              : "bg-gray-400"
                               }`}
                           >
                             Absent
@@ -1515,9 +1527,9 @@ const displayedSessionDurationSeconds =
                               )
                             }
                             className={`rounded-lg px-3 py-1 text-sm text-white ${student.status ===
-                                "Leave"
-                                ? "bg-yellow-500"
-                                : "bg-gray-400"
+                              "Leave"
+                              ? "bg-yellow-500"
+                              : "bg-gray-400"
                               }`}
                           >
                             Leave
