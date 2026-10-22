@@ -1277,7 +1277,7 @@ const displayedSessionDurationSeconds =
             className="mb-3 text-blue-600"
           />
 
-          <h2 className="text-3xl font-bold text-gray-900">
+          <h2 className="text-3xl font-bold text-blue-900">
             {totalStudents}
           </h2>
 
